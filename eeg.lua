@@ -154,51 +154,51 @@ for name,proto in pairs(protos) do
 end
 
 
--- -- evaluate the loss over an entire split
--- function eval_split(split_index, max_batches)
---     print('evaluating loss over split index ' .. split_index)
---     local n = loader.split_sizes[split_index]
---     if max_batches ~= nil then n = math.min(max_batches, n) end
---
---     loader:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
---     local loss = 0
---     local rnn_state = {[0] = init_state}
---
---     for i = 1,n do -- iterate over batches in the split
---         -- fetch a batch
---         local x, y = loader:next_batch(split_index)
---         if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
---             -- have to convert to float because integers can't be cuda()'d
---             x = x:float():cuda()
---             y = y:float():cuda()
---         end
---         if opt.gpuid >= 0 and opt.opencl == 1 then -- ship the input arrays to GPU
---             x = x:cl()
---             y = y:cl()
---         end
---         -- forward pass
---         for t=1,opt.seq_length do
---             clones.rnn[t]:evaluate() -- for dropout proper functioning
---             local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
---             rnn_state[t] = {}
---             for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
---             prediction = lst[#lst]
---             loss = loss + clones.criterion[t]:forward(prediction, y[{{}, t}])
---         end
---         -- carry over lstm state
---         rnn_state[0] = rnn_state[#rnn_state]
---         print(i .. '/' .. n .. '...')
---     end
---
---     loss = loss / opt.seq_length / n
---     return loss
--- end
+-- evaluate the loss over an entire split
+function eval_split(split_index)
+    print('evaluating loss over split index ' .. split_index)
 
-function eval_split()
-    printRed('implementation ends here...')
-    os.exit()
+    loader:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
+    local loss = 0
+    local rnn_state = {[0] = init_state}
+
+    -- TODO: dirty hack. will work as long as there are less then 1e6 batches in a file
+    function get_batch_id()
+        return loader.file_idx[split_index] * 1e6 + loader.batch_idx[split_index]
+    end
+
+    -- iterate over batches in the split
+    local ct = 0
+    local last_batch_id = -1
+    while get_batch_id() > last_batch_id do
+        last_batch_id = get_batch_id()
+        -- fetch a batch
+        local x, y = loader:next_batch(split_index)
+        if opt.gpuid >= 0 then -- ship the input arrays to GPU
+            -- have to convert to float because integers can't be cuda()'d
+            x = x:float():cuda()
+            y = y:float():cuda()
+        end
+        -- forward pass
+        for t=1,opt.seq_length do
+            clones.rnn[t]:evaluate() -- for dropout proper functioning
+            local lst = clones.rnn[t]:forward{x[{{}, t, {}}], unpack(rnn_state[t-1])}
+            rnn_state[t] = {}
+            for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
+            prediction = lst[#lst]
+            loss = loss + clones.criterion[t]:forward(prediction, y[{{}, t, {}}])
+        end
+        -- carry over lstm state
+        rnn_state[0] = rnn_state[#rnn_state]
+        ct = ct + 1
+        if ct % 10 == 0 then
+            print(ct .. '...')
+        end
+    end
+
+    loss = loss / opt.seq_length / ct
+    return loss
 end
-
 
 -- do fwd/bwd and return loss, grad_params
 local init_state_global = clone_list(init_state)
@@ -269,6 +269,12 @@ for i = 1, iterations do
     local train_loss = loss[1] -- the loss is inside a list, pop it
     train_losses[i] = train_loss
 
+    if i % opt.print_every == 0 then
+        local training_eta = time * (iterations - i) / 60
+        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs, ETA = %.2fmin",
+                i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time, training_eta))
+    end
+
     -- exponential learning rate decay
     if i % loader.total_samples == 0 and opt.learning_rate_decay < 1 then
         if epoch >= opt.learning_rate_decay_after then
@@ -296,10 +302,6 @@ for i = 1, iterations do
         checkpoint.epoch = epoch
         checkpoint.vocab = loader.vocab_mapping
         torch.save(savefile, checkpoint)
-    end
-
-    if i % opt.print_every == 0 then
-        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs", i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time))
     end
 
     if i % 10 == 0 then collectgarbage() end

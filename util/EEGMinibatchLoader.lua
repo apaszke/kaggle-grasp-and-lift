@@ -123,6 +123,14 @@ function EEGMinibatchLoader:reset_batch_pointer(split_index, batch_index, file_i
     self.file_idx[split_index] = file_index
 end
 
+-- TODO: add support for other sets
+function EEGMinibatchLoader:refresh()
+    local prev_batch_idx = self.batch_idx[1]
+    self:load_file(1, self.file_idx[1])
+    self.batch_idx[1] = prev_batch_idx
+    print('resuming from batch ' .. prev_batch_idx)
+end
+
 function EEGMinibatchLoader:next_batch(split_index)
     -- load data
     if not self.data_loaded[split_index] then

@@ -42,6 +42,7 @@ require 'nn'
 require 'nngraph'
 require 'optim'
 require 'lfs'
+require 'gnuplot'
 
 require 'util.misc'
 local model_utils = require 'util.model_utils'
@@ -67,7 +68,7 @@ cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
 cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
 cmd:option('-seq_length',250,'number of timesteps to unroll for')
 cmd:option('-batch_size',50,'number of sequences to train on in parallel')
-cmd:option('-max_epochs',50,'number of full passes through the training data')
+cmd:option('-max_epochs',5,'number of full passes through the training data')
 cmd:option('-grad_clip',5,'clip gradients at this value')
 cmd:option('-test_files',2,'numer of files that go into test set')
 cmd:option('-val_files',3,'numer of files that go into validation set')
@@ -114,8 +115,18 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 -- define the model: prototypes for one timestep, then clone them in time
 local do_random_init = true
 if string.len(opt.init_from) > 0 then
-    printRed('checkpoints aren\'t supported yet')
-    os.exit()
+    print('loading an LSTM from checkpoint ' .. opt.init_from)
+    local checkpoint = torch.load(opt.init_from)
+    protos = checkpoint.protos
+    -- overwrite model settings based on checkpoint to ensure compatibility
+    print('overwriting rnn_size=' .. checkpoint.opt.rnn_size .. ', num_layers=' .. checkpoint.opt.num_layers .. ' based on the checkpoint.')
+    opt.rnn_size = checkpoint.opt.rnn_size
+    opt.num_layers = checkpoint.opt.num_layers
+    do_random_init = false
+
+    loader.file_idx = checkpoint.loader.file_idx
+    loader.batch_idx = checkpoint.loader.batch_idx
+    loader:refresh()
 else
     print('creating an LSTM with ' .. opt.rnn_size .. ' units in ' .. opt.num_layers .. ' layers')
     protos = {}
@@ -249,6 +260,7 @@ function feval(x)
     -- transfer final state to initial state (BPTT)
     init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
     -- clip gradient element-wise
+    grad_params:div(opt.seq_length)
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
     return loss, grad_params
 end
@@ -263,16 +275,27 @@ for i = 1, iterations do
     local epoch = i / loader.total_samples
 
     local timer = torch.Timer()
-    local _, loss = optim.rmsprop(feval, params, optim_state)
+    if opt.optim_algo == 'rmsprop' then
+        local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
+        local _, loss = optim.rmsprop(feval, params, optim_state)
+    elseif opt.optim_algo == 'adadelta' then
+        local optim_state = {rho = 0.95, eps = 1e-7}
+        local _, loss = optim.adadelta(feval, params, optim_state)
+    end
     local time = timer:time().real
 
     local train_loss = loss[1] -- the loss is inside a list, pop it
     train_losses[i] = train_loss
 
     if i % opt.print_every == 0 then
-        local training_eta = time * (iterations - i) / 60
-        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, time/batch = %.2fs, ETA = %.2fmin",
-                i, iterations, epoch, train_loss, grad_params:norm() / params:norm(), time, training_eta))
+        local grad_norm = grad_params:norm()
+        local param_norm = params:norm()
+        print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, param norm = %.2e time/batch = %.2fs",
+                i, iterations, epoch, train_loss, grad_norm / param_norm, param_norm, time))
+        local ct = 0;
+        local xAxis = torch.Tensor(#train_losses):apply(function() ct = ct + 1; return ct; end)
+        gnuplot.plot(xAxis, torch.Tensor(train_losses))
+
     end
 
     -- exponential learning rate decay
@@ -300,7 +323,9 @@ for i = 1, iterations do
         checkpoint.val_losses = val_losses
         checkpoint.i = i
         checkpoint.epoch = epoch
-        checkpoint.vocab = loader.vocab_mapping
+        checkpoint.loader = {}
+        checkpoint.loader.file_idx = loader.file_idx
+        checkpoint.loader.batch_idx = loader.batch_idx
         torch.save(savefile, checkpoint)
     end
 

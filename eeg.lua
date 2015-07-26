@@ -61,6 +61,7 @@ cmd:option('-prepro_dir','data/preprocessed','preprocessed data directory')
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
 -- optimization
+cmd:option('-optim_algo','rmsprop','optimization algorithm')
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
 cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
@@ -265,8 +266,18 @@ function feval(x)
     return loss, grad_params
 end
 
+function calculate_avg_loss(losses)
+    local smoothing = 10
+    local sum = 0
+    for i = #losses, math.max(1, #losses - 10), -1 do
+        sum = sum + losses[i]
+    end
+    return sum / math.min(smoothing, #losses)
+end
+
 -- start optimization here
 train_losses = {}
+train_losses_avg = {}
 val_losses = {}
 local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
 local iterations = opt.max_epochs * loader.total_samples
@@ -274,18 +285,20 @@ local loss0 = nil
 for i = 1, iterations do
     local epoch = i / loader.total_samples
 
+    local _, loss
     local timer = torch.Timer()
     if opt.optim_algo == 'rmsprop' then
         local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
-        local _, loss = optim.rmsprop(feval, params, optim_state)
+        _, loss = optim.rmsprop(feval, params, optim_state)
     elseif opt.optim_algo == 'adadelta' then
         local optim_state = {rho = 0.95, eps = 1e-7}
-        local _, loss = optim.adadelta(feval, params, optim_state)
+        _, loss = optim.adadelta(feval, params, optim_state)
     end
     local time = timer:time().real
 
     local train_loss = loss[1] -- the loss is inside a list, pop it
     train_losses[i] = train_loss
+    train_losses_avg[i] = calculate_avg_loss(train_losses)
 
     if i % opt.print_every == 0 then
         local grad_norm = grad_params:norm()
@@ -293,8 +306,8 @@ for i = 1, iterations do
         print(string.format("%d/%d (epoch %.3f), train_loss = %6.8f, grad/param norm = %6.4e, param norm = %.2e time/batch = %.2fs",
                 i, iterations, epoch, train_loss, grad_norm / param_norm, param_norm, time))
         local ct = 0;
-        local xAxis = torch.Tensor(#train_losses):apply(function() ct = ct + 1; return ct; end)
-        gnuplot.plot(xAxis, torch.Tensor(train_losses))
+        local xAxis = torch.Tensor(#train_losses_avg):apply(function() ct = ct + 1; return ct; end)
+        gnuplot.plot(xAxis, torch.Tensor(train_losses_avg))
 
     end
 

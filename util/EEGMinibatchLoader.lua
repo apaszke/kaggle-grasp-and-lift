@@ -4,6 +4,8 @@ EEGMinibatchLoader.__index = EEGMinibatchLoader
 
 -- split_index is integer: 1 = train, 2 = val, 3 = test
 
+local PREPRO_TABLE_THRESHOLD = 0.7e6
+
 function EEGMinibatchLoader.create(data_dir, prepro_dir, opt)
 
     local self = {}
@@ -49,9 +51,9 @@ function EEGMinibatchLoader.create(data_dir, prepro_dir, opt)
     local train_ct, val_ct, test_ct = self.count_prepro_files(prepro_dir)
     self.file_count = {train_ct, val_ct, test_ct}
     self.data_loaded = {false, false, false}
-    self.total_samples = torch.load(path.join(prepro_dir, 'sample_count.t7'))
-    self.batch_idx = 0
-    self.file_idx = 0
+    self.total_samples = torch.load(path.join(prepro_dir, 'sample_count.t7')) / opt.batch_size / opt.seq_length
+    self.batch_idx = {0, 0, 0}
+    self.file_idx = {1, 1, 1}
 
     self:load_file(1, 1)
 
@@ -76,11 +78,11 @@ function EEGMinibatchLoader:load_file(split_index, index)
     local x_path = self.x_prepro_prefix .. modifier .. index .. '.t7'
     local y_path = self.y_prepro_prefix .. modifier .. index .. '.t7'
     if (not path.exists(x_path) or not path.exists(y_path)) then
-        printRed('trying to load inexistent files!')
+        printRed('trying to load inexistent files! (' .. x_path .. ', ' .. y_path .. ')')
         os.exit()
     end
 
-    print('loading data part ' .. index)
+    print('loading data part ' .. index .. ' from split ' .. split_index)
     local data = torch.load(x_path)
     local labels = torch.load(y_path)
 
@@ -108,35 +110,43 @@ function EEGMinibatchLoader:load_file(split_index, index)
 
     self.data_loaded = {false, false, false}
     self.data_loaded[split_index] = true
-    self.file_idx = index
-    self.batch_idx = 0
+    self.file_idx[split_index] = index
+    self.batch_idx[split_index] = 0
 
     return true
 end
 
-function EEGMinibatchLoader:reset_batch_pointer(split_index, batch_index)
+function EEGMinibatchLoader:reset_batch_pointer(split_index, batch_index, file_index)
     batch_index = batch_index or 0
+    file_index = file_index or 1
     self.batch_idx[split_index] = batch_index
+    self.file_idx[split_index] = file_index
 end
 
 function EEGMinibatchLoader:next_batch(split_index)
     -- load data
     if not self.data_loaded[split_index] then
-
+        local prev_batch_idx = self.batch_idx[split_index]
+        self:load_file(split_index, self.file_idx[split_index])
+        self.batch_idx[split_index] = prev_batch_idx
+        if prev_batch_idx > 0 then
+            print('resuming from batch ' .. prev_batch_idx)
+        end
     end
 
-    self.batch_idx = self.batch_idx + 1
-    if self.batch_idx > #self.x_batches then
+    self.batch_idx[split_index] = self.batch_idx[split_index] + 1
+    if self.batch_idx[split_index] > #self.x_batches then
         -- load next file
-        local file_idx = self.file_idx + 1
+        local file_idx = self.file_idx[split_index] + 1
         if file_idx > self.file_count[split_index] then
             file_idx = 1 -- wrap around file count
         end
-        self:load_file(split_index, file_idx)
-        self.batch_idx = 1
+        self:load_file(split_index, file_idx) -- sets new file index
+        self.batch_idx[split_index] = 1
     end
-    print(#self.x_batches .. ' - ' .. self.batch_idx)
-    return self.x_batches[self.batch_idx], self.y_batches[self.batch_idx]
+
+    local final_batch_idx = self.batch_idx[split_index]
+    return self.x_batches[final_batch_idx], self.y_batches[final_batch_idx]
 end
 
 -- *** STATIC methods ***
@@ -252,7 +262,7 @@ function EEGMinibatchLoader.preprocess(input_files, input_filename, label_filena
         ----------------- save tensors -----------------
         -- save tensors if tables are growing big
         -- for lua's 2GB memory limit 1e6 entries is already big
-        if #data_table > 1e6 then
+        if #data_table > PREPRO_TABLE_THRESHOLD then
             saveTensors()
         end
     end

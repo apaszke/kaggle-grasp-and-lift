@@ -269,7 +269,7 @@ end
 function calculate_avg_loss(losses)
     local smoothing = 10
     local sum = 0
-    for i = #losses, math.max(1, #losses - 10), -1 do
+    for i = #losses, math.max(1, #losses - smoothing + 1), -1 do
         sum = sum + losses[i]
     end
     return sum / math.min(smoothing, #losses)

@@ -115,6 +115,7 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 
 -- define the model: prototypes for one timestep, then clone them in time
 local do_random_init = true
+local start_iter = 1
 if string.len(opt.init_from) > 0 then
     print('loading an LSTM from checkpoint ' .. opt.init_from)
     local checkpoint = torch.load(opt.init_from)
@@ -123,6 +124,7 @@ if string.len(opt.init_from) > 0 then
     print('overwriting rnn_size=' .. checkpoint.opt.rnn_size .. ', num_layers=' .. checkpoint.opt.num_layers .. ' based on the checkpoint.')
     opt.rnn_size = checkpoint.opt.rnn_size
     opt.num_layers = checkpoint.opt.num_layers
+    start_iter = checkpoint.i
     do_random_init = false
 
     loader.file_idx = checkpoint.loader.file_idx
@@ -267,7 +269,7 @@ function feval(x)
 end
 
 function calculate_avg_loss(losses)
-    local smoothing = 10
+    local smoothing = 20
     local sum = 0
     for i = #losses, math.max(1, #losses - smoothing + 1), -1 do
         sum = sum + losses[i]
@@ -282,7 +284,7 @@ val_losses = {}
 local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
 local iterations = opt.max_epochs * loader.total_samples
 local loss0 = nil
-for i = 1, iterations do
+for i = start_iter, iterations do
     local epoch = i / loader.total_samples
 
     local _, loss

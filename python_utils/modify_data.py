@@ -19,7 +19,7 @@ data_out_path = "data/filtered/subj{0}_series{1}_data.csv"
 events_out_path = "data/filtered/subj{0}_series{1}_events.csv"
 num_subjects = 12
 num_series = 8
-offset = 0
+offset = 8
 
 total_samples = 0
 total_used_samples = 0
@@ -37,40 +37,60 @@ for subj in xrange(1, num_subjects + 1):
 
         # find event indices
         print 'filtering events'
-        start_df = events_df[events_df['HandStart'] != 0].id
-        end_df = events_df[events_df['BothReleased'] != 0].id
-        num_events = start_df.count() / 150
-        assert start_df.count() == end_df.count()
+        hs_df = events_df[events_df['HandStart'] != 0].id
+        fdt_df = events_df[events_df['FirstDigitTouch'] != 0].id
+        bslp_df = events_df[events_df['BothStartLoadPhase'] != 0].id
+        lo_df = events_df[events_df['LiftOff'] != 0].id
+        r_df = events_df[events_df['Replace'] != 0].id
+        br_df = events_df[events_df['BothReleased'] != 0].id
+        num_events = hs_df.count() / 150
 
+        # check if it's one of the strange files
+        counts = [
+            hs_df.count(),
+            fdt_df.count(),
+            bslp_df.count(),
+            lo_df.count(),
+            r_df.count(),
+            br_df.count()
+        ]
+        file_is_ok = True
+        for i in xrange(1, len(counts)):
+            if counts[0] != counts[i]:
+                file_is_ok = False
+
+        if not file_is_ok or counts[0] % 150 != 0:
+            print 'there is a problem with this file...'
+            continue
+
+        # the file has to be ok now
         print 'found: ' + str(num_events) + ' events'
 
         # event_boundaries is a list of pairs (t_start, t_end)
         event_boundaries = []
         for i in xrange(0, num_events * 150, 150):
-            # make sure that we're not doing it wrong
-            # i should be an index of an particular event's start and end
-            if i > 0:
-                assert start_df.iloc[i] - start_df.iloc[i - 1] > 1
-                assert end_df.iloc[i] - end_df.iloc[i - 1] > 1
-            assert start_df.iloc[i] < end_df.iloc[i]
-            event_boundaries.append((start_df.iloc[i] - offset, end_df.iloc[i] + offset))
+            event_boundaries.append((hs_df.iloc[i] - offset, hs_df.iloc[i] + 150 + offset))
+            event_boundaries.append((fdt_df.iloc[i] - offset, fdt_df.iloc[i] + 150 + offset))
+            event_boundaries.append((bslp_df.iloc[i] - offset, bslp_df.iloc[i] + 150 + offset))
+            event_boundaries.append((lo_df.iloc[i] - offset, lo_df.iloc[i] + 150 + offset))
+            event_boundaries.append((r_df.iloc[i] - offset, r_df.iloc[i] + 150 + offset))
+            event_boundaries.append((br_df.iloc[i] - offset, br_df.iloc[i] + 150 + offset))
 
         # print some information
         event_lengths = map(lambda (s, e): e - s + 1, event_boundaries)
         used_samples = reduce(lambda x, y: x + y, event_lengths)
-        avg_length = used_samples / num_events
+        avg_length = used_samples / num_events / 6
         percent_used = float(used_samples) / events_df['id'].count() * 100
         total_samples += events_df['id'].count()
         total_used_samples += used_samples
         print 'using {} samples ({:.2f}%)'.format(used_samples, percent_used)
         print 'average event length: {}'.format(avg_length)
-        sparsity = 1 - (150. * 6.) / avg_length
+        sparsity = 1 - (150.) / avg_length
         print 'sparsity: {}'.format(sparsity)
 
         # extract only selected ranges
         data_slices = []
         events_slices = []
-        assert len(event_boundaries) == num_events
         for i in xrange(0, num_events):
             start, end = event_boundaries[i]
             data_slices.append(data_df.iloc[start:end+1])

@@ -92,9 +92,12 @@ function EEGMinibatchLoader:load_file(split_index, index)
         print('cutting off end of data so that the batches/sequences divide evenly')
         local new_len = self.batch_size * self.seq_length
                     * math.floor(len / (self.batch_size * self.seq_length))
+        if new_len == 0 then
+            printRed(string.format('ERROR! Minimum batch size is: %d, but there are only %d samples', self.batch_size * self.seq_length, len))
+        end
         data = data:sub(1, new_len)
         labels = labels:sub(1, new_len)
-        printYellow(string.format('wasted %d samples out of %d (%.3f%%)', len - new_len, len, 1 - (new_len / len)))
+        printYellow(string.format('wasted %d samples out of %d (%.3f%%)', len - new_len, len, (1 - (new_len / len)) * 100))
     end
 
     -- get input and label dimensionality

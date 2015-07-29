@@ -17,9 +17,9 @@ which is turn based on other stuff in Torch, etc... (long lineage)
 
 local print_orig = print
 
-function print(str)
-    print_orig(os.date('[%H:%M:%S] ') .. tostring(str))
-end
+-- function print(str)
+--     print_orig(os.date('[%H:%M:%S] ') .. tostring(str))
+-- end
 
 function printRed(str)
     print('\27[0;31m' .. tostring(str) .. '\27[m')
@@ -55,7 +55,7 @@ cmd:text('Train a character-level language model')
 cmd:text()
 cmd:text('Options')
 -- data
-cmd:option('-data_dir','data/train','data directory')
+cmd:option('-data_dir','data/filtered','data directory')
 cmd:option('-prepro_dir','data/preprocessed','preprocessed data directory')
 -- model params
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
@@ -69,7 +69,7 @@ cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
 cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
 cmd:option('-seq_length',250,'number of timesteps to unroll for')
 cmd:option('-batch_size',50,'number of sequences to train on in parallel')
-cmd:option('-max_epochs',5,'number of full passes through the training data')
+cmd:option('-max_epochs',50,'number of full passes through the training data')
 cmd:option('-grad_clip',5,'clip gradients at this value')
 cmd:option('-test_files',2,'numer of files that go into test set')
 cmd:option('-val_files',3,'numer of files that go into validation set')
@@ -239,6 +239,17 @@ function feval(x)
         rnn_state[t] = {}
         for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
         predictions[t] = lst[#lst] -- last element is the prediction
+        if t % 25 == 0 then
+            local str = ''
+            for i = 1,6 do
+                str = str .. string.format('%.2f ', predictions[t][1][i])
+            end
+            str = str .. '\n'
+            for i = 1,6 do
+                str = str .. string.format('%.2f ', y[{{}, t, {}}][1][i])
+            end
+            print(str .. '| ' .. t)
+        end
         loss = loss + clones.criterion[t]:forward(predictions[t], y[{{}, t, {}}])
     end
     loss = loss / opt.seq_length
@@ -261,7 +272,7 @@ function feval(x)
     end
     ------------------------ misc ----------------------
     -- transfer final state to initial state (BPTT)
-    init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
+    -- init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
     -- clip gradient element-wise
     grad_params:div(opt.seq_length)
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
@@ -269,7 +280,7 @@ function feval(x)
 end
 
 function calculate_avg_loss(losses)
-    local smoothing = 20
+    local smoothing = 40
     local sum = 0
     for i = #losses, math.max(1, #losses - smoothing + 1), -1 do
         sum = sum + losses[i]
@@ -357,3 +368,6 @@ for i = start_iter, iterations do
         break -- halt
     end
 end
+
+
+print 'TRAINING DONE'

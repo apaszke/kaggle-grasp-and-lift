@@ -143,14 +143,11 @@ for file in lfs.dir(opt.test_data_dir) do
             current_state = {}
             for i = 1,state_size do table.insert(current_state, lst[i]) end
             prediction = lst[#lst]
-            if prediction:max() > 0.3 then
-                print(prediction)
-            end
             for i = 1,prediction:size(2) do
                 if i > 1 then
                     out_file:write(',')
                 end
-                out_file:write(prediction[1][i])
+                out_file:write(string.format('%.2f', prediction[1][i]))
             end
             out_file:write('\n')
         end

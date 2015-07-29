@@ -94,7 +94,7 @@ function EEGMinibatchLoader:load_file(split_index, index)
                     * math.floor(len / (self.batch_size * self.seq_length))
         data = data:sub(1, new_len)
         labels = labels:sub(1, new_len)
-        printYellow('wasted ' .. (len - new_len) .. ' samples out of ' .. len)
+        printYellow(string.format('wasted %d samples out of %d (%.3f%%)', len - new_len, len, 1 - (new_len / len)))
     end
 
     -- get input and label dimensionality

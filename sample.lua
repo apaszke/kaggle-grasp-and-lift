@@ -74,7 +74,7 @@ init_state = {}
 for L = 1,num_layers do
     -- c and h for all layers
     local h_init = torch.zeros(1, checkpoint.opt.rnn_size)
-    if opt.gpuid >= 0 and opt.opencl == 0 then h_init = h_init:cuda() end
+    if opt.gpuid >= 0 then h_init = h_init:cuda() end
     table.insert(init_state, h_init:clone())
     table.insert(init_state, h_init:clone())
 end
@@ -125,6 +125,7 @@ for file in lfs.dir(opt.test_data_dir) do
         end
 
         local data_tensor = torch.Tensor(data_table)
+        if opt.gpuid >= 0 then data_tensor = data_tensor:cuda() end
         local num_samples = data_tensor:size(1)
 
         print('read ' .. num_samples .. ' samples')

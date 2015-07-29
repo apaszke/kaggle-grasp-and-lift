@@ -1,4 +1,17 @@
 import pandas as pd
+import argparse
+from subprocess import call
+
+parser = argparse.ArgumentParser(description='Filter out 0 labels from the training set')
+parser.add_argument('-n', default=-1, type=int, help='how many files to filter', dest='num_files')
+parser.add_argument('-c', default=False, action='store_true', help='clear filtered file directory', dest='should_rm')
+args = parser.parse_args()
+
+if args.should_rm:
+    print 'removing old files'
+    call(['rm', '-rf', 'data/filtered'])
+    call(['mkdir', 'data/filtered'])
+    print 'done'
 
 data_in_path = "data/train/subj{0}_series{1}_data.csv"
 events_in_path = "data/train/subj{0}_series{1}_events.csv"
@@ -6,7 +19,7 @@ data_out_path = "data/filtered/subj{0}_series{1}_data.csv"
 events_out_path = "data/filtered/subj{0}_series{1}_events.csv"
 num_subjects = 12
 num_series = 8
-offset = 75
+offset = 0
 
 total_samples = 0
 total_used_samples = 0
@@ -43,11 +56,16 @@ for subj in xrange(1, num_subjects + 1):
             event_boundaries.append((start_df.iloc[i] - offset, end_df.iloc[i] + offset))
 
         # print some information
-        used_samples = reduce(lambda x, y: x + y, map(lambda (s, e): e - s + 1, event_boundaries))
+        event_lengths = map(lambda (s, e): e - s + 1, event_boundaries)
+        used_samples = reduce(lambda x, y: x + y, event_lengths)
+        avg_length = used_samples / num_events
         percent_used = float(used_samples) / events_df['id'].count() * 100
         total_samples += events_df['id'].count()
         total_used_samples += used_samples
         print 'using {} samples ({:.2f}%)'.format(used_samples, percent_used)
+        print 'average event length: {}'.format(avg_length)
+        sparsity = 1 - (150. * 6.) / avg_length
+        print 'sparsity: {}'.format(sparsity)
 
         # extract only selected ranges
         data_slices = []
@@ -59,10 +77,13 @@ for subj in xrange(1, num_subjects + 1):
             events_slices.append(events_df.iloc[start:end+1])
 
         # concat and save the slices
-        pd.concat(data_slices).to_csv(data_out_path.format(subj, series))
-        pd.concat(events_slices).to_csv(events_out_path.format(subj, series))
+        pd.concat(data_slices).to_csv(data_out_path.format(subj, series), index=False)
+        pd.concat(events_slices).to_csv(events_out_path.format(subj, series), index=False)
 
         print 'done'
+
+        if args.num_files > -1 and ((subj - 1) * num_series) + series >= args.num_files:
+            quit()
 
 total_percent_used = float(total_used_samples) / total_samples * 100
 print 'used {} samples ({:.2f}%)'.format(total_used_samples, total_percent_used)

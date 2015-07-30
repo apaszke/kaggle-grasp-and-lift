@@ -239,17 +239,17 @@ function feval(x)
         rnn_state[t] = {}
         for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
         predictions[t] = lst[#lst] -- last element is the prediction
-        if t % 25 == 0 then
-            local str = ''
-            for i = 1,6 do
-                str = str .. string.format('%.2f ', predictions[t][1][i])
-            end
-            str = str .. '\n'
-            for i = 1,6 do
-                str = str .. string.format('%.2f ', y[{{}, t, {}}][1][i])
-            end
-            print(str .. '| ' .. t)
-        end
+        -- if t % 25 == 0 then
+        --     local str = ''
+        --     for i = 1,6 do
+        --         str = str .. string.format('%.2f ', predictions[t][1][i])
+        --     end
+        --     str = str .. '\n'
+        --     for i = 1,6 do
+        --         str = str .. string.format('%.2f ', y[{{}, t, {}}][1][i])
+        --     end
+        --     print(str .. '| ' .. t)
+        -- end
         loss = loss + clones.criterion[t]:forward(predictions[t], y[{{}, t, {}}])
     end
     loss = loss / opt.seq_length
@@ -321,7 +321,9 @@ for i = start_iter, iterations do
         local ct = 0;
         local xAxis = torch.Tensor(#train_losses_avg):apply(function() ct = ct + 1; return ct; end)
         gnuplot.plot(xAxis, torch.Tensor(train_losses_avg))
-
+        gnuplot.figure(2)
+        gnuplot.plot(xAxis:sub(1, #val_losses), torch.Tensor(val_losses))
+        gnuplot.figure(1)
     end
 
     -- exponential learning rate decay
@@ -339,7 +341,7 @@ for i = start_iter, iterations do
         local val_loss = eval_split(2) -- 2 = validation
         val_losses[i] = val_loss
 
-        local savefile = string.format('%s/lm_%s_epoch%.2f_%.4f.t7', opt.checkpoint_dir, opt.savefile, epoch, val_loss)
+        local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch)
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.protos = protos

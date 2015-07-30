@@ -44,6 +44,9 @@ total_used_samples = 0
 # we want inclusive ranges
 for subj in range(1, num_subjects + 1):
     for series in range(1, num_series + 1):
+        if (subj, series) in val_files:
+            continue
+
         # load files
         print('reading files for subject {}, series {}'.format(subj, series))
         data_df = pd.read_csv(data_in_path.format(subj, series))
@@ -109,7 +112,7 @@ for subj in range(1, num_subjects + 1):
         # extract only selected ranges
         data_slices = []
         events_slices = []
-        for i in range(0, num_events):
+        for i in range(0, num_events * 6):
             start, end = event_boundaries[i]
             data_slices.append(data_df.iloc[start:end+1])
             events_slices.append(events_df.iloc[start:end+1])

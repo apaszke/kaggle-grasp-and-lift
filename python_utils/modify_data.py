@@ -2,11 +2,16 @@ import pandas as pd
 import argparse
 from subprocess import call
 from functools import reduce
+from random import seed, randint
+import shutil
 
 parser = argparse.ArgumentParser(description='Filter out 0 labels from the training set')
 parser.add_argument('-n', default=-1, type=int, help='how many files to filter', dest='num_files')
+parser.add_argument('-v', default=4, type=int, help='how many files to leave for validation', dest='num_val_files')
 parser.add_argument('-c', default=False, action='store_true', help='clear filtered file directory', dest='should_rm')
 args = parser.parse_args()
+
+seed(123)
 
 if args.should_rm:
     print('removing old files')
@@ -21,6 +26,18 @@ events_out_path = "data/filtered/subj{0}_series{1}_events.csv"
 num_subjects = 12
 num_series = 8
 offset = 8
+
+val_files = set()
+for i in range(0, args.num_val_files):
+    indexes = (randint(1, num_subjects), randint(1, num_series))
+    while indexes in val_files:
+        indexes = (randint(1, num_subjects), randint(1, num_series))
+    val_files.add(indexes)
+    print('copying subject {} series {} as validation'.format(indexes[0], indexes[1]))
+    shutil.copy2(data_in_path.format(indexes[0], indexes[1]),
+                 data_out_path.format(indexes[0], indexes[1]) + ".val")
+    shutil.copy2(events_in_path.format(indexes[0], indexes[1]),
+                 events_out_path.format(indexes[0], indexes[1]) + ".val")
 
 total_samples = 0
 total_used_samples = 0

@@ -25,7 +25,7 @@ data_out_path = "data/filtered/subj{0}_series{1}_data.csv"
 events_out_path = "data/filtered/subj{0}_series{1}_events.csv"
 num_subjects = 12
 num_series = 8
-offset = 8
+offset = 7
 
 val_files = set()
 for i in range(0, args.num_val_files):
@@ -45,6 +45,7 @@ total_used_samples = 0
 for subj in range(1, num_subjects + 1):
     for series in range(1, num_series + 1):
         if (subj, series) in val_files:
+
             continue
 
         # load files
@@ -123,7 +124,7 @@ for subj in range(1, num_subjects + 1):
 
         print('done')
 
-        if args.num_files > -1 and ((subj - 1) * num_series) + series >= args.num_files:
+        if args.num_files > -1 and ((subj - 1) * num_series) + series - args.num_val_files >= args.num_files:
             quit()
 
 total_percent_used = float(total_used_samples) / total_samples * 100

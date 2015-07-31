@@ -13,13 +13,14 @@ which is turn based on other stuff in Torch, etc... (long lineage)
 
 ]]--
 
--- s[1][{{}, 1, {}}]
-
 local print_orig = print
 
 -- function print(str)
 --     print_orig(os.date('[%H:%M:%S] ') .. tostring(str))
 -- end
+
+local offset = 15
+local id = torch.randn(1)[1]
 
 function printRed(str)
     print('\27[0;31m' .. tostring(str) .. '\27[m')
@@ -130,6 +131,10 @@ if string.len(opt.init_from) > 0 then
     loader.file_idx = checkpoint.loader.file_idx
     loader.batch_idx = checkpoint.loader.batch_idx
     loader:refresh()
+
+    train_losses = checkpoint.train_losses
+    train_losses_avg = checkpoint.train_losses_avg
+    val_losses = checkpoint.val_losses
 else
     print('creating an LSTM with ' .. opt.rnn_size .. ' units in ' .. opt.num_layers .. ' layers')
     protos = {}
@@ -289,9 +294,9 @@ function calculate_avg_loss(losses)
 end
 
 -- start optimization here
-train_losses = {}
-train_losses_avg = {}
-val_losses = {}
+train_losses = train_losses or {}
+train_losses_avg = train_losses_avg or {}
+val_losses = val_losses or {}
 local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
 local iterations = opt.max_epochs * loader.total_samples
 local loss0 = nil
@@ -321,9 +326,11 @@ for i = start_iter, iterations do
         local ct = 0;
         local xAxis = torch.Tensor(#train_losses_avg):apply(function() ct = ct + 1; return ct; end)
         gnuplot.plot(xAxis, torch.Tensor(train_losses_avg))
-        gnuplot.figure(2)
-        gnuplot.plot(xAxis:sub(1, #val_losses), torch.Tensor(val_losses))
-        gnuplot.figure(1)
+        if #val_losses > 0 then
+            gnuplot.figure(2)
+            gnuplot.plot(xAxis:sub(1, #val_losses), torch.Tensor(val_losses))
+            gnuplot.figure(1)
+        end
     end
 
     -- exponential learning rate decay
@@ -341,7 +348,7 @@ for i = start_iter, iterations do
         local val_loss = eval_split(2) -- 2 = validation
         val_losses[i] = val_loss
 
-        local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch)
+        local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f_%d.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch, offset)
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.protos = protos
@@ -354,6 +361,7 @@ for i = start_iter, iterations do
         checkpoint.loader = {}
         checkpoint.loader.file_idx = loader.file_idx
         checkpoint.loader.batch_idx = loader.batch_idx
+        checkpoint.id = id
         torch.save(savefile, checkpoint)
     end
 

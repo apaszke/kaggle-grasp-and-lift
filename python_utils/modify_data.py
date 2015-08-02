@@ -45,7 +45,6 @@ total_used_samples = 0
 for subj in range(1, num_subjects + 1):
     for series in range(1, num_series + 1):
         if (subj, series) in val_files:
-
             continue
 
         # load files

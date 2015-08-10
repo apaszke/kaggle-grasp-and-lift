@@ -117,6 +117,7 @@ if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
 -- define the model: prototypes for one timestep, then clone them in time
 local do_random_init = true
 local start_iter = 1
+local forget_gates = {}
 if string.len(opt.init_from) > 0 then
     print('loading an LSTM from checkpoint ' .. opt.init_from)
     local checkpoint = torch.load(opt.init_from)
@@ -138,7 +139,7 @@ if string.len(opt.init_from) > 0 then
 else
     print('creating an LSTM with ' .. opt.rnn_size .. ' units in ' .. opt.num_layers .. ' layers')
     protos = {}
-    protos.rnn = LSTM.lstm(loader.input_dim, loader.label_dim, opt.rnn_size, opt.num_layers, opt.dropout) -- TODO: set proper size
+    protos.rnn, forget_gates = LSTM.lstm(loader.input_dim, loader.label_dim, opt.rnn_size, opt.num_layers, opt.dropout) -- TODO: set proper size
     protos.criterion = nn.BCECriterion()
 end
 
@@ -162,6 +163,9 @@ params, grad_params = model_utils.combine_all_parameters(protos.rnn)
 -- initialization
 if do_random_init then
     params:uniform(-0.08, 0.08) -- small numbers uniform
+    for i = 1, #forget_gates do
+      forget_gates[i].data.module.bias:sub(opt.rnn_size + 1, opt.rnn_size * 2):fill(1.5)
+    end
 end
 
 print('number of parameters in the model: ' .. params:nElement())

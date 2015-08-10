@@ -5,6 +5,7 @@ local LSTM = {}
 -- n is layer count
 function LSTM.lstm(input_size, output_size, rnn_size, n, dropout)
   dropout = dropout or 0
+  forget_gates = {}
 
   -- there will be 2*n+1 inputs
   local inputs = {}
@@ -23,11 +24,8 @@ function LSTM.lstm(input_size, output_size, rnn_size, n, dropout)
     local prev_c = inputs[L*2]
     -- the input to this layer
     if L == 1 then
-    --   x = nn.Linear(input_size, rnn_size)(inputs[1])
-    --   x = nn.ReLU()(x)
-    --   input_size_L = rnn_size
-    x = inputs[1]
-    input_size_L = input_size
+      x = inputs[1]
+      input_size_L = input_size
     else
       x = outputs[(L-1)*2]
       if dropout > 0 then x = nn.Dropout(dropout)(x):annotate({ name = "Dropout in layer: " .. L }) end -- apply dropout, if any
@@ -58,6 +56,7 @@ function LSTM.lstm(input_size, output_size, rnn_size, n, dropout)
 
     table.insert(outputs, next_c)
     table.insert(outputs, next_h)
+    table.insert(forget_gates, i2h)
   end
 
   -- set up the decoder
@@ -67,7 +66,7 @@ function LSTM.lstm(input_size, output_size, rnn_size, n, dropout)
   local out_nonlinearity = nn.Sigmoid()(proj)
   table.insert(outputs, out_nonlinearity)
 
-  return nn.gModule(inputs, outputs)
+  return nn.gModule(inputs, outputs), forget_gates
 end
 
 return LSTM

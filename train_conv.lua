@@ -48,9 +48,9 @@ cmd:option('-learning_rate_decay',0.97,'learning rate decay')
 cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
 cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
 cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
-cmd:option('-seq_length',250,'number of timesteps to unroll for')
-cmd:option('-batch_size',10,'number of sequences to train on in parallel')
-cmd:option('-window_len',200,'number of timesteps to unroll for')
+cmd:option('-seq_length',1000,'number of timesteps to unroll for')
+cmd:option('-batch_size',2,'number of sequences to train on in parallel')
+cmd:option('-window_len',800,'number of timesteps to unroll for')
 cmd:option('-max_epochs',50,'number of full passes through the training data')
 cmd:option('-grad_clip',5,'clip gradients at this value')
 -- checkpoints
@@ -102,11 +102,19 @@ if string.len(opt.init_from) > 0 then
 else
     print('creating CNN')
     cnn = nn.Sequential()
-    cnn:add( nn.TemporalConvolution(32, 24, 1) )
+    cnn:add( nn.TemporalConvolution(32, 15, 1) )
     cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(24, 8, 1) )
+    cnn:add( nn.TemporalConvolution(15, 30, 50) )
     cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(8, 6, 200) )
+    cnn:add( nn.TemporalConvolution(30, 30, 50) )
+    cnn:add( nn.ReLU() )
+    cnn:add( nn.TemporalConvolution(30, 15, 50) )
+    cnn:add( nn.ReLU() )
+    cnn:add( nn.TemporalConvolution(15, 100, 653) )
+    cnn:add( nn.ReLU() )
+    cnn:add( nn.TemporalConvolution(100, 100, 1) )
+    cnn:add( nn.Tanh() )
+    cnn:add( nn.TemporalConvolution(100, 6, 1))
     cnn:add( nn.Sigmoid() )
     criterion = nn.BCECriterion()
 end
@@ -124,6 +132,7 @@ function eval_split(split_index)
 end
 
 local params, grad_params = cnn:getParameters()
+params:uniform(-0.08, 0.08)
 local feval = function(x)
     if x ~= params then
         params:copy(x)
@@ -142,7 +151,7 @@ local feval = function(x)
     local num_steps = x:size(2) - opt.window_len + 1
     for first_sample = 1, num_steps do
         local last_sample = first_sample + opt.window_len - 1
-        local x_mini = x:sub(1, batch_size, first_sample, last_sample):squeeze()
+        local x_mini = x:sub(1, batch_size, first_sample, last_sample)
         local y_mini = y[{{}, last_sample, {}}]
         -- local y_mini = y:sub(1, batch_size, first_sample, last_sample):squeeze()
         -- print(y_mini:size())
@@ -151,12 +160,21 @@ local feval = function(x)
         loss = loss + partial_loss
         cnn:backward(x_mini, criterion:backward(cnn.output, y_mini))
         if first_sample == 1 then
-            print(cnn.output[1], y_mini[1])
+            str = ''
+            for i = 1, 6 do
+                str = str .. string.format('%.2f ', cnn.output[1][1][i])
+            end
+            str = str .. '\n'
+            for i = 1, 6 do
+                str = str .. string.format('%.2f ', y_mini[1][i])
+            end
+            str = str .. '\n'
+            print(str)
         end
     end
 
     grad_params:div(num_steps)
-    grad_params:clamp(-1, 1)
+    grad_params:clamp(-5, 5)
     loss = loss / num_steps
     return loss, grad_params
 end

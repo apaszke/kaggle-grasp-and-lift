@@ -20,5 +20,5 @@ std = [1] + full_df.std().tolist()
 del full_df
 
 print('Saving results')
-with open('./python_utils/mean_std.pickle', 'wb') as f:
+with open('./data/mean_std.pickle', 'wb') as f:
     pickle.dump((mean, std), f)

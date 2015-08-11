@@ -24,7 +24,7 @@ require 'util.misc'
 
 local MODEL_ID = torch.randn(1)[1]
 local model_utils = require 'util.model_utils'
-local LSTM = require 'model.LSTM'
+local LSTM = require 'modules.LSTM'
 local EEGMinibatchLoader = require 'util.EEGMinibatchLoader'
 
 cmd = torch.CmdLine()

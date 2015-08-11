@@ -17,6 +17,8 @@ cmd:text('Options')
 -- data
 cmd:option('-data_dir','data/filtered','data directory')
 cmd:option('-prepro_dir','data/preprocessed','preprocessed data directory')
+-- model prototype
+cmd:option('-proto_file', 'cnn_proto/first_cnn.lua', 'file defining network structure')
 -- optimization
 cmd:option('-optim_algo','rmsprop','optimization algorithm')
 cmd:option('-learning_rate',2e-3,'learning rate')
@@ -77,15 +79,7 @@ if string.len(opt.init_from) > 0 then
     os.exit()
 else
     print('creating CNN')
-    cnn = nn.Sequential()
-    cnn:add( nn.TemporalConvolution(32, 50, 30) )
-    cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(50, 100, 30) )
-    cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(100, 300, 242) )
-    cnn:add( nn.Tanh() )
-    cnn:add( nn.TemporalConvolution(300, 6, 1))
-    cnn:add( nn.Sigmoid() )
+    dofile(opt.proto_file)
     criterion = nn.BCECriterion()
 end
 

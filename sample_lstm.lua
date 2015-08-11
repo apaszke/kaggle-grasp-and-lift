@@ -35,23 +35,18 @@ cmd:text()
 -- parse input params
 opt = cmd:parse(arg)
 
--- gated print: simple utility function wrapping a print
-function gprint(str)
-    if opt.verbose == 1 then print(str) end
-end
-
 -- check that cunn/cutorch are installed if user wants to use the GPU
 if opt.gpuid >= 0 then
     local ok, cunn = pcall(require, 'cunn')
     local ok2, cutorch = pcall(require, 'cutorch')
-    if not ok then gprint('package cunn not found!') end
-    if not ok2 then gprint('package cutorch not found!') end
+    if not ok then print('package cunn not found!') end
+    if not ok2 then print('package cutorch not found!') end
     if ok and ok2 then
-        gprint('using CUDA on GPU ' .. opt.gpuid .. '...')
+        print('using CUDA on GPU ' .. opt.gpuid .. '...')
         cutorch.setDevice(opt.gpuid + 1) -- note +1 to make it 0 indexed! sigh lua
         cutorch.manualSeed(opt.seed)
     else
-        gprint('Falling back on CPU mode')
+        print('Falling back on CPU mode')
         opt.gpuid = -1 -- overwrite user setting
     end
 end
@@ -60,14 +55,14 @@ torch.manualSeed(opt.seed)
 
 -- load the model checkpoint
 if not lfs.attributes(opt.model, 'mode') then
-    gprint('Error: File ' .. opt.model .. ' does not exist. Are you sure you didn\'t forget to prepend cv/ ?')
+    print('Error: File ' .. opt.model .. ' does not exist. Are you sure you didn\'t forget to prepend cv/ ?')
 end
 checkpoint = torch.load(opt.model)
 protos = checkpoint.protos
 protos.rnn:evaluate() -- put in eval mode so that dropout works properly
 
 -- initialize the rnn state to all zeros
-gprint('creating an LSTM...')
+print('creating an LSTM...')
 local init_state
 local num_layers = checkpoint.opt.num_layers
 init_state = {}
@@ -80,29 +75,9 @@ for L = 1,num_layers do
 end
 state_size = #init_state
 
--- do a few seeded timesteps
--- local seed_text = opt.primetext
--- if string.len(seed_text) > 0 then
---     gprint('seeding with ' .. seed_text)
---     gprint('--------------------------')
---     for c in seed_text:gmatch'.' do
---         prev_char = torch.Tensor{vocab[c]}
---         io.write(ivocab[prev_char[1]])
---         if opt.gpuid >= 0 and opt.opencl == 0 then prev_char = prev_char:cuda() end
---         if opt.gpuid >= 0 and opt.opencl == 1 then prev_char = prev_char:cl() end
---         local lst = protos.rnn:forward{prev_char, unpack(current_state)}
---         -- lst is a list of [state1,state2,..stateN,output]. We want everything but last piece
---         current_state = {}
---         for i=1,state_size do table.insert(current_state, lst[i]) end
---         prediction = lst[#lst] -- last element holds the log probabilities
---     end
--- else
-    -- fill with uniform probabilities over characters (? hmm)
-    -- gprint('missing seed text, using uniform probability over first character')
-    -- gprint('--------------------------')
-    prediction = torch.zeros(6)
-    if opt.gpuid >= 0 then prediction = prediction:cuda() end
--- end
+
+prediction = torch.zeros(6)
+if opt.gpuid >= 0 then prediction = prediction:cuda() end
 
 -- start sampling/argmaxing
 

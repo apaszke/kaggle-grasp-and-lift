@@ -11,7 +11,7 @@ local EEGMinibatchLoader = require 'util.EEGMinibatchLoader'
 
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text('Train a character-level language model')
+cmd:text('Train a cnn to classify EEG recordings')
 cmd:text()
 cmd:text('Options')
 -- data
@@ -23,10 +23,10 @@ cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
 cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
 cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
-cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
-cmd:option('-seq_length',800,'number of timesteps to unroll for')
+cmd:option('-dropout',0,'dropout for regularization (0 = no dropout)')
+cmd:option('-seq_length',800,'batch length')
 cmd:option('-batch_size',2,'number of sequences to train on in parallel')
-cmd:option('-window_len',300,'number of timesteps to unroll for')
+cmd:option('-window_len',300,'cnn window size')
 cmd:option('-max_epochs',50,'number of full passes through the training data')
 cmd:option('-grad_clip',5,'clip gradients at this value')
 -- checkpoints
@@ -64,7 +64,7 @@ if opt.gpuid >= 0 then
 end
 
 -- create the data loader class
-local loader = EEGMinibatchLoader.create(opt.data_dir, opt.prepro_dir, opt)
+local loader = EEGMinibatchLoader.create(opt)
 
 -- make sure output directory exists
 if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
@@ -97,8 +97,47 @@ end
 
 -- evaluate the loss over an entire split
 function eval_split(split_index)
-    printRed('No implementation yet')
-    os.exit()
+    print('evaluating loss over split index ' .. split_index)
+
+    loader:reset_batch_pointer(split_index) -- move batch iteration pointer for this split to front
+    local loss = 0
+
+    -- TODO: dirty hack. will work as long as there are less then 1e6 batches in a file
+    function get_batch_id()
+        return loader.file_idx[split_index] * 1e6 + loader.batch_idx[split_index]
+    end
+
+    -- iterate over batches in the split
+    local ct = 0
+    local last_batch_id = -1
+    while get_batch_id() > last_batch_id do
+        last_batch_id = get_batch_id()
+        -- fetch a batch
+        local x, y = loader:next_batch(split_index)
+        if opt.gpuid >= 0 then -- ship the input arrays to GPU
+            -- have to convert to float because integers can't be cuda()'d
+            x = x:float():cuda()
+            y = y:float():cuda()
+        end
+        -- forward pass
+        local batch_size = x:size(1)
+        local num_steps = x:size(2) - opt.window_len + 1
+        local partial_loss = 0
+        for first_sample = 1, num_steps do
+            local last_sample = first_sample + opt.window_len - 1
+            local x_mini = x:sub(1, batch_size, first_sample, last_sample)
+            local y_mini = y[{{}, last_sample, {}}]
+            partial_loss = partial_loss + criterion:forward(cnn:forward(x_mini), y_mini)
+        end
+        loss = loss + (partial_loss / num_steps)
+        ct = ct + 1
+        if ct % 10 == 0 then
+            print('Evaluated: ' .. ct .. ' batches')
+        end
+    end
+
+    loss = loss / ct
+    return loss
 end
 
 local params, grad_params = cnn:getParameters()

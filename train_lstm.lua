@@ -86,7 +86,7 @@ if opt.gpuid >= 0 then
 end
 
 -- create the data loader class
-local loader = EEGMinibatchLoader.create(opt.data_dir, opt.prepro_dir, opt)
+local loader = EEGMinibatchLoader.create(opt)
 
 -- define the model: prototypes for one timestep, then clone them in time
 local do_random_init = true

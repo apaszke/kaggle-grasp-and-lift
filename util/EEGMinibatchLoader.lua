@@ -6,7 +6,9 @@ EEGMinibatchLoader.__index = EEGMinibatchLoader
 
 local PREPRO_TABLE_THRESHOLD = 0.7e6
 
-function EEGMinibatchLoader.create(data_dir, prepro_dir, opt)
+function EEGMinibatchLoader.create(opt)
+    data_dir = opt.data_dir
+    prepro_dir = opt.prepro_dir
 
     local self = {}
     setmetatable(self, EEGMinibatchLoader)
@@ -68,6 +70,7 @@ function EEGMinibatchLoader:load_file(split_index, index)
         os.exit()
     end
     if self.file_count[split_index] < index then
+        PRINT(self.file_count)
         printRed('invalid file index in load_file: split=' .. split_index .. ', index=' .. index)
         os.exit()
     end

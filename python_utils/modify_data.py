@@ -40,7 +40,7 @@ for i in range(0, args.num_val_files):
 
 total_samples = 0
 total_used_samples = 0
-event_length = int(150 / args.subsample)
+event_length = 150 // args.subsample
 
 sparsity = 1 - event_length / (event_length + 2 * offset // args.subsample)
 print('output sparsity: {:.3f}'.format(sparsity))

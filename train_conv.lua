@@ -1,36 +1,12 @@
 
-
-local print_orig = print
-
--- function print(str)
---     print_orig(os.date('[%H:%M:%S] ') .. tostring(str))
--- end
-
-local offset = 15
-local id = torch.randn(1)[1]
-
-function printRed(str)
-    print('\27[0;31m' .. tostring(str) .. '\27[m')
-end
-
-function printGreen(str)
-    print('\27[0;32m' .. tostring(str) .. '\27[m')
-end
-
-function printYellow(str)
-    print('\27[0;33m' .. tostring(str) .. '\27[m')
-end
-
-function printBlue(str)
-    print('\27[0;34m' .. tostring(str) .. '\27[m')
-end
-
 require 'torch'
 require 'nn'
 require 'optim'
 require 'lfs'
 require 'gnuplot'
+require 'util.print'
 
+local MODEL_ID = torch.randn(1)[1]
 local EEGMinibatchLoader = require 'util.EEGMinibatchLoader'
 
 cmd = torch.CmdLine()
@@ -48,9 +24,9 @@ cmd:option('-learning_rate_decay',0.97,'learning rate decay')
 cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
 cmd:option('-decay_rate',0.95,'decay rate for rmsprop')
 cmd:option('-dropout',0,'dropout for regularization, used after each RNN hidden layer. 0 = no dropout')
-cmd:option('-seq_length',1000,'number of timesteps to unroll for')
+cmd:option('-seq_length',800,'number of timesteps to unroll for')
 cmd:option('-batch_size',2,'number of sequences to train on in parallel')
-cmd:option('-window_len',800,'number of timesteps to unroll for')
+cmd:option('-window_len',300,'number of timesteps to unroll for')
 cmd:option('-max_epochs',50,'number of full passes through the training data')
 cmd:option('-grad_clip',5,'clip gradients at this value')
 -- checkpoints
@@ -102,19 +78,13 @@ if string.len(opt.init_from) > 0 then
 else
     print('creating CNN')
     cnn = nn.Sequential()
-    cnn:add( nn.TemporalConvolution(32, 15, 1) )
+    cnn:add( nn.TemporalConvolution(32, 50, 30) )
     cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(15, 30, 50) )
+    cnn:add( nn.TemporalConvolution(50, 100, 30) )
     cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(30, 30, 50) )
-    cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(30, 15, 50) )
-    cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(15, 100, 653) )
-    cnn:add( nn.ReLU() )
-    cnn:add( nn.TemporalConvolution(100, 100, 1) )
+    cnn:add( nn.TemporalConvolution(100, 300, 242) )
     cnn:add( nn.Tanh() )
-    cnn:add( nn.TemporalConvolution(100, 6, 1))
+    cnn:add( nn.TemporalConvolution(300, 6, 1))
     cnn:add( nn.Sigmoid() )
     criterion = nn.BCECriterion()
 end
@@ -153,14 +123,12 @@ local feval = function(x)
         local last_sample = first_sample + opt.window_len - 1
         local x_mini = x:sub(1, batch_size, first_sample, last_sample)
         local y_mini = y[{{}, last_sample, {}}]
-        -- local y_mini = y:sub(1, batch_size, first_sample, last_sample):squeeze()
-        -- print(y_mini:size())
         -- print(cnn:forward(x_mini):size())
         local partial_loss = criterion:forward(cnn:forward(x_mini), y_mini)
         loss = loss + partial_loss
         cnn:backward(x_mini, criterion:backward(cnn.output, y_mini))
         if first_sample == 1 then
-            str = ''
+            str = '\n'
             for i = 1, 6 do
                 str = str .. string.format('%.2f ', cnn.output[1][1][i])
             end
@@ -168,7 +136,6 @@ local feval = function(x)
             for i = 1, 6 do
                 str = str .. string.format('%.2f ', y_mini[1][i])
             end
-            str = str .. '\n'
             print(str)
         end
     end
@@ -192,14 +159,23 @@ end
 train_losses = train_losses or {}
 train_losses_avg = train_losses_avg or {}
 val_losses = val_losses or {}
-local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
+
+local optim_fun, optim_state
+if opt.optim_algo == 'rmsprop' then
+    optim_fun = optim.rmsprop
+    optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
+elseif opt.optim_algo == 'adadelta' then
+    optim_fun = optim.adadelta
+    optim_state = {rho = 0.95, eps = 1e-7}
+end
+
 local iterations = opt.max_epochs * loader.total_samples
 local loss0 = nil
 for i = start_iter, iterations do
     local epoch = i / loader.total_samples
 
     local timer = torch.Timer()
-    local _, loss = optim.rmsprop(feval, params, optim_state)
+    local _, loss = optim_fun(feval, params, optim_state)
     local time = timer:time().real
 
     local train_loss = loss[1] -- the loss is inside a list, pop it
@@ -231,7 +207,7 @@ for i = start_iter, iterations do
         local val_loss = eval_split(2) -- 2 = validation
         val_losses[i] = val_loss
 
-        local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f_%d.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch, offset)
+        local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch)
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.protos = protos
@@ -244,7 +220,7 @@ for i = start_iter, iterations do
         checkpoint.loader = {}
         checkpoint.loader.file_idx = loader.file_idx
         checkpoint.loader.batch_idx = loader.batch_idx
-        checkpoint.id = id
+        checkpoint.id = MODEL_ID
         torch.save(savefile, checkpoint)
     end
 
@@ -255,11 +231,11 @@ for i = start_iter, iterations do
         print('loss is NaN.  This usually indicates a bug.  Please check the issues page for existing issues, or create a new issue, if none exist.  Ideally, please state: your operating system, 32-bit/64-bit, your blas version, cpu/cuda/cl?')
         break -- halt
     end
-    -- if loss0 == nil then loss0 = loss[1] end
-    -- if loss[1] > loss0 * 3 then
-    --     print('loss is exploding, aborting.')
-    --     break -- halt
-    -- end
+    if loss0 == nil then loss0 = loss[1] end
+    if loss[1] > loss0 * 3 then
+        print('loss is exploding, aborting.')
+        break -- halt
+    end
 end
 
 

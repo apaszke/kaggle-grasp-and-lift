@@ -13,39 +13,16 @@ which is turn based on other stuff in Torch, etc... (long lineage)
 
 ]]--
 
-local print_orig = print
-
--- function print(str)
---     print_orig(os.date('[%H:%M:%S] ') .. tostring(str))
--- end
-
-local offset = 15
-local id = torch.randn(1)[1]
-
-function printRed(str)
-    print('\27[0;31m' .. tostring(str) .. '\27[m')
-end
-
-function printGreen(str)
-    print('\27[0;32m' .. tostring(str) .. '\27[m')
-end
-
-function printYellow(str)
-    print('\27[0;33m' .. tostring(str) .. '\27[m')
-end
-
-function printBlue(str)
-    print('\27[0;34m' .. tostring(str) .. '\27[m')
-end
-
 require 'torch'
 require 'nn'
 require 'nngraph'
 require 'optim'
 require 'lfs'
 require 'gnuplot'
-
+require 'util.print'
 require 'util.misc'
+
+local MODEL_ID = torch.randn(1)[1]
 local model_utils = require 'util.model_utils'
 local LSTM = require 'model.LSTM'
 local EEGMinibatchLoader = require 'util.EEGMinibatchLoader'
@@ -111,9 +88,6 @@ end
 -- create the data loader class
 local loader = EEGMinibatchLoader.create(opt.data_dir, opt.prepro_dir, opt)
 
--- make sure output directory exists
-if not path.exists(opt.checkpoint_dir) then lfs.mkdir(opt.checkpoint_dir) end
-
 -- define the model: prototypes for one timestep, then clone them in time
 local do_random_init = true
 local start_iter = 1
@@ -163,7 +137,7 @@ params, grad_params = model_utils.combine_all_parameters(protos.rnn)
 -- initialization
 if do_random_init then
     params:uniform(-0.08, 0.08) -- small numbers uniform
-    for i = 1, #forget_gates do
+    for i = 1, #forget_gates do -- initialize forget gate bias
       forget_gates[i].data.module.bias:sub(opt.rnn_size + 1, opt.rnn_size * 2):fill(1.5)
     end
 end
@@ -215,7 +189,7 @@ function eval_split(split_index)
         rnn_state[0] = rnn_state[#rnn_state]
         ct = ct + 1
         if ct % 10 == 0 then
-            print(ct .. '...')
+            print('Evaluated: ' .. ct .. 'batches')
         end
     end
 
@@ -281,7 +255,6 @@ function feval(x)
     end
     ------------------------ misc ----------------------
     -- transfer final state to initial state (BPTT)
-    -- init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
     -- clip gradient element-wise
     grad_params:div(opt.seq_length)
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
@@ -301,21 +274,23 @@ end
 train_losses = train_losses or {}
 train_losses_avg = train_losses_avg or {}
 val_losses = val_losses or {}
-local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
+
+local optim_fun, optim_state
+if opt.optim_algo == 'rmsprop' then
+    optim_fun = optim.rmsprop
+    optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
+elseif opt.optim_algo == 'adadelta' then
+    optim_fun = optim.adadelta
+    optim_state = {rho = 0.95, eps = 1e-7}
+end
+
 local iterations = opt.max_epochs * loader.total_samples
 local loss0 = nil
 for i = start_iter, iterations do
     local epoch = i / loader.total_samples
 
-    local _, loss
     local timer = torch.Timer()
-    if opt.optim_algo == 'rmsprop' then
-        local optim_state = {learningRate = opt.learning_rate, alpha = opt.decay_rate}
-        _, loss = optim.rmsprop(feval, params, optim_state)
-    elseif opt.optim_algo == 'adadelta' then
-        local optim_state = {rho = 0.95, eps = 1e-7}
-        _, loss = optim.adadelta(feval, params, optim_state)
-    end
+    local _, loss = optim_fun(feval, params, optim_state)
     local time = timer:time().real
 
     local train_loss = loss[1] -- the loss is inside a list, pop it
@@ -330,11 +305,6 @@ for i = start_iter, iterations do
         local ct = 0;
         local xAxis = torch.Tensor(#train_losses_avg):apply(function() ct = ct + 1; return ct; end)
         gnuplot.plot(xAxis, torch.Tensor(train_losses_avg))
-        if #val_losses > 0 then
-            gnuplot.figure(2)
-            gnuplot.plot(xAxis:sub(1, #val_losses), torch.Tensor(val_losses))
-            gnuplot.figure(1)
-        end
     end
 
     -- exponential learning rate decay
@@ -352,7 +322,7 @@ for i = start_iter, iterations do
         local val_loss = eval_split(2) -- 2 = validation
         val_losses[i] = val_loss
 
-        local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f_%d.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch, offset)
+        local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch)
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.protos = protos
@@ -365,7 +335,7 @@ for i = start_iter, iterations do
         checkpoint.loader = {}
         checkpoint.loader.file_idx = loader.file_idx
         checkpoint.loader.batch_idx = loader.batch_idx
-        checkpoint.id = id
+        checkpoint.id = MODEL_ID
         torch.save(savefile, checkpoint)
     end
 

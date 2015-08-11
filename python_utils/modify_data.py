@@ -78,7 +78,7 @@ for subj in range(1, num_subjects + 1):
         lo_df = events_df[events_df['LiftOff'] != 0].id
         r_df = events_df[events_df['Replace'] != 0].id
         br_df = events_df[events_df['BothReleased'] != 0].id
-        num_events = int(hs_df.count() / event_length)
+        num_events = hs_df.count() // event_length
 
         # check if it's one of the strange files
         counts = [
@@ -112,26 +112,24 @@ for subj in range(1, num_subjects + 1):
             event_boundaries.append((br_df.iloc[i] - offset, br_df.iloc[i] + 150 + offset))
 
         # print some information
-        event_lengths = map(lambda ev: ev[1] - ev[0], event_boundaries)
+        event_lengths = map(lambda ev: (ev[1] - ev[0]) / args.subsample, event_boundaries)
         used_samples = reduce(lambda x, y: x + y, event_lengths)
-        avg_length = used_samples / num_events / 6
-        percent_used = float(used_samples) / num_samples * 100
+        avg_length = used_samples / (num_events * 6)
+        percent_used = used_samples / num_samples * 100
         total_samples += num_samples
         total_used_samples += used_samples
         print('using {} samples ({:.2f}%)'.format(used_samples, percent_used))
         print('average event length: {}'.format(avg_length))
-        sparsity = 1 - 150. / avg_length
-        print('sparsity: {}'.format(sparsity))
+        sparsity = 1 - event_length / avg_length
+        print('sparsity: {:.3f}'.format(sparsity))
 
         # extract only selected ranges
         data_slices = []
         events_slices = []
         for i in range(0, num_events * 6):
             start, end = event_boundaries[i]
-            start = start // args.subsample
-            end = end // args.subsample
-            data_slices.append(data_df.iloc[start:end])
-            events_slices.append(events_df.iloc[start:end])
+            data_slices.append(data_df.loc[start:end])
+            events_slices.append(events_df.loc[start:end])
 
         # concat and save the slices
         data_pd = (pd.concat(data_slices) - mean) / std

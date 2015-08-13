@@ -64,6 +64,7 @@ for subj in range(1, num_subjects + 1):
 
         if (subj, series) in val_files:
             print('copying as validation')
+            data_df = (data_df - mean) / std
             data_df.to_csv(data_out_path.format(subj, series) + '.val', index=False)
             events_df.to_csv(events_out_path.format(subj, series) + '.val', index=False)
             continue

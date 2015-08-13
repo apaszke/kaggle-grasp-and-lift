@@ -17,7 +17,7 @@ done
 
 if [ ! -e "data/mean_std.pickle" ]; then
     echo "Calculating mean and std"
-    python3 calc_mean_std.py
+    python3 python_utils/calc_mean_std.py
     echo "Done"
 fi
 

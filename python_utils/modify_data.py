@@ -136,9 +136,9 @@ for subj in range(1, num_subjects + 1):
             quit()
 
 with open('data/filtered/info', 'w') as f:
-    f.write(offset)
+    f.write(str(offset))
     f.write('\n')
-    f.write(args.subsample)
+    f.write(str(args.subsample))
     f.write('\n')
 
 total_percent_used = float(total_used_samples) / total_samples * 100

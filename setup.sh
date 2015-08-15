@@ -21,7 +21,7 @@ if [ ! -e "data/mean_std.pickle" ]; then
     echo "Done"
 fi
 
-echo "Filtering the data"
+echo "Filtering and processing the data"
 echo $spacer
 python3 python_utils/modify_data.py -c -v 2 -s 5
 

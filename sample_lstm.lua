@@ -1,18 +1,9 @@
-
---[[
-
-This file samples characters from a trained model
-
-Code is based on implementation in
-https://github.com/oxford-cs-ml-2015/practical6
-
-]]--
-
 require 'torch'
 require 'nn'
 require 'nngraph'
 require 'optim'
 require 'lfs'
+require 'xlua'
 
 require 'util.misc'
 
@@ -29,9 +20,11 @@ cmd:option('-sample',1,' 0 to use max at each timestep, 1 to sample at each time
 cmd:option('-temperature',1,'temperature of sampling')
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
 cmd:option('-verbose',1,'set to 0 to ONLY print the sampled text, no diagnostics')
-cmd:option('-test_data_dir','data/test','directory containing test files')
+cmd:option('-data_dir','data/filtered','directory containing test files')
 cmd:text()
 
+lfs.rmdir('tmp')
+lfs.mkdir('tmp')
 -- parse input params
 opt = cmd:parse(arg)
 
@@ -81,12 +74,12 @@ if opt.gpuid >= 0 then prediction = prediction:cuda() end
 
 -- start sampling/argmaxing
 
-for file in lfs.dir(opt.test_data_dir) do
-    if file:find('data.csv') then
+for file in lfs.dir(opt.data_dir) do
+    if file:find('data.csv.val') then
         print(file)
         local data_table = {}
 
-        local data_fh = io.open(path.join(opt.test_data_dir, file))
+        local data_fh = io.open(path.join(opt.data_dir, file))
         local data_content = data_fh:read('*all'):split('\n')
         data_fh:close()
 
@@ -107,11 +100,11 @@ for file in lfs.dir(opt.test_data_dir) do
 
         current_state = clone_list(init_state)
 
-        local out_file = io.open('test_out', 'w')
+        local out_file = io.open('tmp/' .. file, 'w')
 
         for t = 1, num_samples do
             if t % 1000 == 0 then
-                print(t)
+              xlua.progress(t, num_samples)
             end
 
             local lst = protos.rnn:forward{data_tensor[t]:view(1, -1), unpack(current_state)}
@@ -122,13 +115,14 @@ for file in lfs.dir(opt.test_data_dir) do
                 if i > 1 then
                     out_file:write(',')
                 end
-                out_file:write(string.format('%.2f', prediction[1][i]))
+                out_file:write(string.format('%.5f', prediction[1][i]))
             end
             out_file:write('\n')
         end
 
         out_file:close()
 
-        os.exit()
+        print("")
+
     end
 end

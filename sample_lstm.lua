@@ -122,7 +122,11 @@ for file in lfs.dir(opt.data_dir) do
 
         out_file:close()
 
+        xlua.progress(num_samples, num_samples)
+
         print("")
 
     end
 end
+
+os.execute('python3 python_utils/calc_roc.py')

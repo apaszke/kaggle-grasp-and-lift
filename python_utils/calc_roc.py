@@ -18,7 +18,7 @@ for index, file in enumerate(sampled_files):
     subj = int(file.split("_")[0][4:])
     series = int(file.split("_")[1][6:])
     model_df = pd.read_csv(path, header=None)
-    events_df = pd.read_csv('data/filtered/subj{}_series{}_events.csv.val'.format(subj, series))
+    events_df = pd.read_csv('data/train/subj{}_series{}_events.csv'.format(subj, series))
     events_df.drop('id', axis=1, inplace=True)
 
     fpr = dict()

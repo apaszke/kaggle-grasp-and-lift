@@ -72,11 +72,22 @@ state_size = #init_state
 prediction = torch.zeros(6)
 if opt.gpuid >= 0 then prediction = prediction:cuda() end
 
+local info_file = io.open('data/filtered/info', 'r')
+local data_info = info_file:read("*all"):split('\n')
+subsample = tonumber(data_info[2])
+info_file:close()
+
 -- start sampling/argmaxing
 
 for file in lfs.dir(opt.data_dir) do
     if file:find('data.csv.val') then
         print(file)
+
+        local orig_num_samples = -1 -- -1 for the header
+        for _ in io.lines('data/train/' .. file:sub(1, -5)) do
+            orig_num_samples = orig_num_samples + 1
+        end
+
         local data_table = {}
 
         local data_fh = io.open(path.join(opt.data_dir, file))
@@ -101,7 +112,9 @@ for file in lfs.dir(opt.data_dir) do
         current_state = clone_list(init_state)
 
         local out_file = io.open('tmp/' .. file, 'w')
+        local lines_written = 0
 
+        local line
         for t = 1, num_samples do
             if t % 1000 == 0 then
               xlua.progress(t, num_samples)
@@ -111,13 +124,24 @@ for file in lfs.dir(opt.data_dir) do
             current_state = {}
             for i = 1,state_size do table.insert(current_state, lst[i]) end
             prediction = lst[#lst]
+            line = ""
             for i = 1,prediction:size(2) do
                 if i > 1 then
-                    out_file:write(',')
+                    line = line .. ','
                 end
-                out_file:write(string.format('%.5f', prediction[1][i]))
+
+                line = line .. string.format('%.5f', prediction[1][i])
             end
-            out_file:write('\n')
+            line = line .. '\n'
+            for i = 1,math.min(subsample, orig_num_samples - t * subsample) do
+                out_file:write(line)
+                lines_written = lines_written + 1
+            end
+        end
+
+        while lines_written < orig_num_samples do
+            out_file:write(line)
+            lines_written = lines_written + 1
         end
 
         out_file:close()

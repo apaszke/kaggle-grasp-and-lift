@@ -18,7 +18,7 @@ cmd:text('Options')
 cmd:option('-data_dir','data/filtered','data directory')
 cmd:option('-prepro_dir','data/preprocessed','preprocessed data directory')
 -- model prototype
-cmd:option('-proto_file', 'cnn_proto/first_cnn.lua', 'file defining network structure')
+cmd:option('-proto_file', 'cnn/proto/first_cnn.lua', 'file defining network structure')
 -- optimization
 cmd:option('-optim_algo','rmsprop','optimization algorithm')
 cmd:option('-learning_rate',2e-3,'learning rate')
@@ -243,7 +243,9 @@ for i = start_iter, iterations do
         local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch)
         print('saving checkpoint to ' .. savefile)
         local checkpoint = {}
-        checkpoint.protos = protos
+        checkpoint.cnn = cnn
+        checkpoint.criterion = criterion
+        checkpoint.type = "cnn"
         checkpoint.opt = opt
         checkpoint.train_losses = train_losses
         checkpoint.val_loss = val_loss

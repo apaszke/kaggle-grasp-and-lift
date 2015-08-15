@@ -51,26 +51,14 @@ if not lfs.attributes(opt.model, 'mode') then
     print('Error: File ' .. opt.model .. ' does not exist. Are you sure you didn\'t forget to prepend cv/ ?')
 end
 checkpoint = torch.load(opt.model)
-protos = checkpoint.protos
-protos.rnn:evaluate() -- put in eval mode so that dropout works properly
-
--- initialize the rnn state to all zeros
-print('creating an LSTM...')
-local init_state
-local num_layers = checkpoint.opt.num_layers
-init_state = {}
-for L = 1,num_layers do
-    -- c and h for all layers
-    local h_init = torch.zeros(1, checkpoint.opt.rnn_size)
-    if opt.gpuid >= 0 then h_init = h_init:cuda() end
-    table.insert(init_state, h_init:clone())
-    table.insert(init_state, h_init:clone())
+if checkpoint.type == "lstm" then
+  require 'lstm.sampler'
+  sampler = LSTMSampler()
+else
+  require 'cnn.sampler'
+  sampler = CNNSampler()
 end
-state_size = #init_state
-
-
-prediction = torch.zeros(6)
-if opt.gpuid >= 0 then prediction = prediction:cuda() end
+sampler:load_model(checkpoint, opt)
 
 local info_file = io.open('data/filtered/info', 'r')
 local data_info = info_file:read("*all"):split('\n')
@@ -109,23 +97,17 @@ for file in lfs.dir(opt.data_dir) do
         if opt.gpuid >= 0 then data_tensor = data_tensor:cuda() end
         local num_samples = data_tensor:size(1)
 
-        print('read ' .. num_samples .. ' samples')
-
-        local lines_written = 0
         local out_file = io.open('tmp/' .. file, 'w')
+        local lines_written = sampler:prepare_file(out_file)
 
         local line
-        local current_state = clone_list(init_state)
-        for t = 1, num_samples do
+        for t = math.max(1, lines_written), num_samples do
             if t % 100 == 0 then
               xlua.progress(t, num_samples)
             end
 
             -- generate prediction and next state
-            local lst = protos.rnn:forward{data_tensor[t]:view(1, -1), unpack(current_state)}
-            current_state = {}
-            for i = 1,state_size do table.insert(current_state, lst[i]) end
-            prediction = lst[#lst]
+            local prediction = sampler:predict(t, data_tensor)
 
             -- save properly formatted output
             line = ""
@@ -157,4 +139,5 @@ for file in lfs.dir(opt.data_dir) do
     end
 end
 
+print("calculating ROC")
 os.execute('python3 python_utils/calc_roc.py')

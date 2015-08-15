@@ -4,6 +4,7 @@ from sklearn.metrics import roc_curve, auc
 from os import listdir
 from os.path import isfile, join
 from time import sleep
+from sys import platform
 
 val_path = 'tmp'
 sampled_files = [ f for f in listdir(val_path) if isfile(join(val_path,f)) ]
@@ -61,7 +62,10 @@ plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.title('Average AUC: {:0.6f}'.format(avg_roc_all / len(sampled_files)))
 plt.legend(loc="lower right")
-plt.show(block=False)
 
-
-sleep(15)
+# non-blocking show doesn't work on my linux
+if platform == 'linux':
+    plt.show()
+else:
+    plt.show(block=False)
+    sleep(15)

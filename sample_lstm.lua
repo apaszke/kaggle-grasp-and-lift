@@ -77,19 +77,20 @@ local data_info = info_file:read("*all"):split('\n')
 subsample = tonumber(data_info[2])
 info_file:close()
 
--- start sampling/argmaxing
+-- start sampling
 
 for file in lfs.dir(opt.data_dir) do
     if file:find('data.csv.val') then
         print(file)
 
+        -- count samples in original file
         local orig_num_samples = -1 -- -1 for the header
         for _ in io.lines('data/train/' .. file:sub(1, -5)) do
             orig_num_samples = orig_num_samples + 1
         end
 
+        -- load the data
         local data_table = {}
-
         local data_fh = io.open(path.join(opt.data_dir, file))
         local data_content = data_fh:read('*all'):split('\n')
         data_fh:close()
@@ -103,27 +104,30 @@ for file in lfs.dir(opt.data_dir) do
             end
         end
 
+        -- create data tensor
         local data_tensor = torch.Tensor(data_table)
         if opt.gpuid >= 0 then data_tensor = data_tensor:cuda() end
         local num_samples = data_tensor:size(1)
 
         print('read ' .. num_samples .. ' samples')
 
-        current_state = clone_list(init_state)
-
-        local out_file = io.open('tmp/' .. file, 'w')
         local lines_written = 0
+        local out_file = io.open('tmp/' .. file, 'w')
 
         local line
+        local current_state = clone_list(init_state)
         for t = 1, num_samples do
-            if t % 1000 == 0 then
+            if t % 100 == 0 then
               xlua.progress(t, num_samples)
             end
 
+            -- generate prediction and next state
             local lst = protos.rnn:forward{data_tensor[t]:view(1, -1), unpack(current_state)}
             current_state = {}
             for i = 1,state_size do table.insert(current_state, lst[i]) end
             prediction = lst[#lst]
+
+            -- save properly formatted output
             line = ""
             for i = 1,prediction:size(2) do
                 if i > 1 then
@@ -133,22 +137,22 @@ for file in lfs.dir(opt.data_dir) do
                 line = line .. string.format('%.5f', prediction[1][i])
             end
             line = line .. '\n'
+
+            -- don't write too many lines
             for i = 1,math.min(subsample, orig_num_samples - t * subsample) do
                 out_file:write(line)
                 lines_written = lines_written + 1
             end
         end
 
+        -- fill the remaining samples with last prediction
         while lines_written < orig_num_samples do
             out_file:write(line)
             lines_written = lines_written + 1
         end
 
         out_file:close()
-
         xlua.progress(num_samples, num_samples)
-
-        print("")
 
     end
 end

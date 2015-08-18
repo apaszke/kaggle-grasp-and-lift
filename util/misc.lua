@@ -11,3 +11,20 @@ function clone_list(tensor_list, zero_too)
     end
     return out
 end
+
+function sliceTable(table, to)
+    local slice = {}
+    for i = 1, to do
+        slice[i] = table[i]
+    end
+    return slice
+end
+
+function calculate_avg_loss(losses)
+    local smoothing = 40
+    local sum = 0
+    for i = #losses, math.max(1, #losses - smoothing + 1), -1 do
+        sum = sum + losses[i]
+    end
+    return sum / math.min(smoothing, #losses)
+end

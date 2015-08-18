@@ -241,7 +241,7 @@ for i = start_iter, iterations do
         val_losses[i] = val_loss
 
         local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch)
-        print('saving checkpoint to ' .. savefile)
+        printGreen('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.cnn = cnn
         checkpoint.criterion = criterion

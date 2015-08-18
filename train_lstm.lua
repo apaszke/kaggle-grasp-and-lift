@@ -108,7 +108,10 @@ if string.len(opt.init_from) > 0 then
     loader:refresh()
 
     train_losses = checkpoint.train_losses
-    train_losses_avg = checkpoint.train_losses_avg
+    train_losses_avg = {}
+    for i = 1, #train_losses do
+        train_losses_avg[i] = calculate_avg_loss(sliceTable(train_losses, i))
+    end
     val_losses = checkpoint.val_losses
 else
     print('creating an LSTM with ' .. opt.rnn_size .. ' units in ' .. opt.num_layers .. ' layers')
@@ -261,15 +264,6 @@ function feval(x)
     return loss, grad_params
 end
 
-function calculate_avg_loss(losses)
-    local smoothing = 40
-    local sum = 0
-    for i = #losses, math.max(1, #losses - smoothing + 1), -1 do
-        sum = sum + losses[i]
-    end
-    return sum / math.min(smoothing, #losses)
-end
-
 -- start optimization here
 train_losses = train_losses or {}
 train_losses_avg = train_losses_avg or {}
@@ -323,7 +317,7 @@ for i = start_iter, iterations do
         val_losses[i] = val_loss
 
         local savefile = string.format('%s/lm_%s_epoch%.4f_%.2f.t7', opt.checkpoint_dir, opt.savefile, val_loss, epoch)
-        print('saving checkpoint to ' .. savefile)
+        printGreen('saving checkpoint to ' .. savefile)
         local checkpoint = {}
         checkpoint.protos = protos
         checkpoint.type = "lstm"

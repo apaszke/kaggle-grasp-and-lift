@@ -11,10 +11,10 @@ function CNNSampler:load_model(checkpoint)
 end
 
 function CNNSampler:prepare_file(out_file)
-  for i = 1, self.window_len do
+  for i = 1, self.window_len - 1 do
     out_file:write('0,0,0,0,0,0\n')
   end
-  return self.window_len
+  return self.window_len - 1
 end
 
 function CNNSampler:predict(t, data_tensor)

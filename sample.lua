@@ -101,7 +101,7 @@ for file in lfs.dir(opt.data_dir) do
         local lines_written = sampler:prepare_file(out_file)
 
         local line
-        for t = math.max(1, lines_written), num_samples do
+        for t = lines_written + 1, num_samples do
             if t % 100 == 0 then
               xlua.progress(t, num_samples)
             end

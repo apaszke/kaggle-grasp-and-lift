@@ -6,7 +6,7 @@ from os.path import isfile, join
 from time import sleep
 from sys import platform
 
-val_path = 'tmp'
+val_path = 'sampled_files'
 sampled_files = [ f for f in listdir(val_path) if isfile(join(val_path,f)) ]
 num_classes = 6
 

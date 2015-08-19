@@ -16,16 +16,14 @@ cmd:text('Options')
 cmd:argument('-model','model checkpoint to use for sampling')
 -- optional parameters
 cmd:option('-seed',123,'random number generator\'s seed')
-cmd:option('-sample',1,' 0 to use max at each timestep, 1 to sample at each timestep')
-cmd:option('-temperature',1,'temperature of sampling')
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
-cmd:option('-verbose',1,'set to 0 to ONLY print the sampled text, no diagnostics')
 cmd:option('-data_dir','data/preprocessed','directory containing sampled files')
 cmd:option('-submission',false,'sample test set instead of validation set')
 cmd:text()
 
-os.execute('rm -rf tmp')
-lfs.mkdir('tmp')
+-- clear old sampled files
+os.execute('rm -rf sampled_files')
+lfs.mkdir('sampled_files')
 
 -- parse input params
 opt = cmd:parse(arg)
@@ -70,11 +68,10 @@ info_file:close()
 -- start sampling
 
 if opt.submission then
-    suffix = '.csv'
-    if opt.data_dir == 'data/preprocessed' then
-        opt.data_dir = 'data/test'
-    end
+    orig_dir = 'data/test/'
+    suffix = 'data.csv.test'
 else
+    orig_dir = 'data/train/'
     suffix = 'data.csv.val'
 end
 
@@ -84,7 +81,8 @@ for file in lfs.dir(opt.data_dir) do
 
         -- count samples in original file
         local orig_num_samples = -1 -- -1 for the header
-        for _ in io.lines('data/train/' .. file:sub(1, -5)) do
+        local orig_name = opt.submission and file:sub(1, -6) or file:sub(1, -5)
+        for _ in io.lines(orig_dir .. orig_name) do
             orig_num_samples = orig_num_samples + 1
         end
 
@@ -108,7 +106,7 @@ for file in lfs.dir(opt.data_dir) do
         if opt.gpuid >= 0 then data_tensor = data_tensor:cuda() end
         local num_samples = data_tensor:size(1)
 
-        local out_file = io.open('tmp/' .. file, 'w')
+        local out_file = io.open('sampled_files/' .. file, 'w')
         local lines_written = sampler:prepare_file(out_file)
 
         local line
@@ -150,5 +148,7 @@ for file in lfs.dir(opt.data_dir) do
     end
 end
 
-print("calculating ROC")
-os.execute('python3 python_utils/calc_roc.py')
+if not opt.submission then
+  print("calculating ROC")
+  os.execute('python3 python_utils/calc_roc.py')
+end

@@ -194,6 +194,7 @@ function EEGMinibatchLoader.glob_raw_data_files(data_dir, num_test, num_val)
     for file in lfs.dir(data_dir) do
         if file:find('data.csv.val') then
             table.insert(val_data, path.join(data_dir, file))
+        elseif file:find('data.csv.test') then
         elseif file:find('data.csv') then
             table.insert(data, path.join(data_dir, file))
         end

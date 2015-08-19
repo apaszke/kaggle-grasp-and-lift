@@ -20,11 +20,13 @@ cmd:option('-sample',1,' 0 to use max at each timestep, 1 to sample at each time
 cmd:option('-temperature',1,'temperature of sampling')
 cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
 cmd:option('-verbose',1,'set to 0 to ONLY print the sampled text, no diagnostics')
-cmd:option('-data_dir','data/filtered','directory containing test files')
+cmd:option('-data_dir','data/preprocessed','directory containing sampled files')
+cmd:option('-submission',false,'sample test set instead of validation set')
 cmd:text()
 
-lfs.rmdir('tmp')
+os.execute('rm -rf tmp')
 lfs.mkdir('tmp')
+
 -- parse input params
 opt = cmd:parse(arg)
 
@@ -60,15 +62,24 @@ else
 end
 sampler:load_model(checkpoint, opt)
 
-local info_file = io.open('data/filtered/info', 'r')
+local info_file = io.open('data/preprocessed/info', 'r')
 local data_info = info_file:read("*all"):split('\n')
 subsample = tonumber(data_info[2])
 info_file:close()
 
 -- start sampling
 
+if opt.submission then
+    suffix = '.csv'
+    if opt.data_dir == 'data/preprocessed' then
+        opt.data_dir = 'data/test'
+    end
+else
+    suffix = 'data.csv.val'
+end
+
 for file in lfs.dir(opt.data_dir) do
-    if file:find('data.csv.val') then
+    if file:find(suffix) then
         print(file)
 
         -- count samples in original file

@@ -33,8 +33,8 @@ cmd:text('Train a character-level language model')
 cmd:text()
 cmd:text('Options')
 -- data
-cmd:option('-data_dir','data/filtered','data directory')
-cmd:option('-prepro_dir','data/preprocessed','preprocessed data directory')
+cmd:option('-data_dir','data/preprocessed','data directory')
+cmd:option('-prepro_dir','data/torch','torch data directory')
 -- model params
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')

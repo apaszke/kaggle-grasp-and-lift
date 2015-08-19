@@ -3,8 +3,8 @@ spacer="========================================"
 
 mkdir -p data/train
 mkdir -p data/test
-mkdir -p data/filtered
 mkdir -p data/preprocessed
+mkdir -p data/torch
 mkdir -p cv
 
 while [ ! "$(ls -A data/train)" ]; do
@@ -23,6 +23,6 @@ fi
 
 echo "Filtering and processing the data"
 echo $spacer
-python3 python_utils/modify_data.py -c -v 2 -s 5
+python3 python_utils/modify_data.py -v 2 -s 3 -subject 1
 
 echo "Setup done!"

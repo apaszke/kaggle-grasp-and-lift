@@ -13,13 +13,13 @@ parser.add_argument('-s', default=1, type=int, help='subsampling', dest='subsamp
 parser.add_argument('-v', default=4, type=int, help='how many files to leave for validation', dest='num_val_files')
 parser.add_argument('-o', default=10, type=int, help='', dest='offset')
 parser.add_argument('-subject', default=-1, type=int, help='', dest='subject')
-parser.add_argument('-f', default=False, action='store_true', help='clear filtered file directory', dest='filter')
+parser.add_argument('-f', default=False, action='store_true', help='clear preprocessed file directory', dest='filter')
 args = parser.parse_args()
 
 data_in_path = "data/train/subj{0}_series{1}_data.csv"
 events_in_path = "data/train/subj{0}_series{1}_events.csv"
-data_out_path = "data/filtered/subj{0}_series{1}_data.csv"
-events_out_path = "data/filtered/subj{0}_series{1}_events.csv"
+data_out_path = "data/preprocessed/subj{0}_series{1}_data.csv"
+events_out_path = "data/preprocessed/subj{0}_series{1}_events.csv"
 num_subjects = 12
 num_series = 8
 total_samples = 0
@@ -27,7 +27,7 @@ total_used_samples = 0
 event_length = 150 // args.subsample
 if args.subject == -1:
   subjects = range(1, num_subjects + 1)
-else
+else:
   subjects = [args.subject]
 
 seed(123)
@@ -38,11 +38,11 @@ if 150 % args.subsample != 0:
 
 # remove old files
 print('removing old files...')
-call(['rm', '-rf', 'data/filtered'])
-call(['mkdir', 'data/filtered'])
+call(['rm', '-rf', 'data/preprocessed'])
+call(['mkdir', 'data/preprocessed'])
 
 # save information about the data
-with open('data/filtered/info', 'w') as f:
+with open('data/preprocessed/info', 'w') as f:
     f.write(str(args.offset))
     f.write('\n')
     f.write(str(args.subsample))

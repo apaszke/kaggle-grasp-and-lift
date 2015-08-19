@@ -15,8 +15,8 @@ cmd:text('Train a cnn to classify EEG recordings')
 cmd:text()
 cmd:text('Options')
 -- data
-cmd:option('-data_dir','data/filtered','data directory')
-cmd:option('-prepro_dir','data/preprocessed','preprocessed data directory')
+cmd:option('-data_dir','data/preprocessed','data directory')
+cmd:option('-prepro_dir','data/torch','torch data directory')
 -- model prototype
 cmd:option('-proto_file', 'cnn/proto/first_cnn.lua', 'file defining network structure')
 -- optimization

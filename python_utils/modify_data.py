@@ -2,20 +2,21 @@ import pandas as pd
 import argparse
 from subprocess import call
 from functools import reduce
-from random import seed, randint
+from random import seed, randint, choice
 from scipy.signal import butter, lfilter
 import shutil
 import pickle
 
 parser = argparse.ArgumentParser(description='Filter out 0 labels from the training set')
-parser.add_argument('-n', default=-1, type=int, help='how many files to filter', dest='num_files')
-parser.add_argument('-s', default=1, type=int, help='subsampling', dest='subsample')
-parser.add_argument('-v', default=4, type=int, help='how many files to leave for validation', dest='num_val_files')
-parser.add_argument('-o', default=10, type=int, help='', dest='offset')
 parser.add_argument('-subject', default=-1, type=int, help='', dest='subject')
-parser.add_argument('-f', default=False, action='store_true', help='clear preprocessed file directory', dest='filter')
+parser.add_argument('-num_files', default=-1, type=int, help='how many files to filter', dest='num_files')
+parser.add_argument('-subsample', default=1, type=int, help='subsampling', dest='subsample')
+parser.add_argument('-num_val', default=4, type=int, help='how many files to leave for validation', dest='num_val_files')
+parser.add_argument('-filter_events', default=False, action='store_true', help='clear preprocessed file directory', dest='filter')
+parser.add_argument('-offset', default=10, type=int, help='', dest='offset')
 args = parser.parse_args()
 
+test_in_path = "data/test/subj{0}_series{1}_data.csv"
 data_in_path = "data/train/subj{0}_series{1}_data.csv"
 events_in_path = "data/train/subj{0}_series{1}_events.csv"
 data_out_path = "data/preprocessed/subj{0}_series{1}_data.csv"
@@ -48,21 +49,23 @@ with open('data/preprocessed/info', 'w') as f:
     f.write(str(args.subsample))
     f.write('\n')
 
-
+# load precalculated mean and std
 with open('./data/mean_std.pickle', 'rb') as f:
     mean, std = pickle.load(f)
 
 # select some files for validation
 val_files = set()
 for i in range(0, args.num_val_files):
-    indexes = (randint(1, num_subjects), randint(1, num_series))
+    indexes = (choice(subjects), randint(1, num_series))
     while indexes in val_files:
-        indexes = (randint(1, num_subjects), randint(1, num_series))
+        indexes = (choice(subjects), randint(1, num_series))
     val_files.add(indexes)
 
-
-sparsity = 1 - event_length / (event_length + 2 * args.offset // args.subsample)
-print('output sparsity: {:.3f}'.format(sparsity))
+# list test files
+test_files = set()
+for subj in subjects:
+    for series in range(9, 10 + 1):
+        test_files.add((subj, series))
 
 def filterData(data_df, events_df):
     global args
@@ -125,12 +128,17 @@ def filterData(data_df, events_df):
 
 # we want inclusive ranges
 for subj in subjects:
-    for series in range(1, num_series + 1):
+    for series in range(1, 10 + 1):
 
         # load files
         print('reading file for subject {}, series {}'.format(subj, series))
-        data_df = pd.read_csv(data_in_path.format(subj, series))
-        events_df = pd.read_csv(events_in_path.format(subj, series))
+        if not (subj, series) in test_files:
+            data_df = pd.read_csv(data_in_path.format(subj, series))
+            events_df = pd.read_csv(events_in_path.format(subj, series))
+        else:
+            data_df = pd.read_csv(test_in_path.format(subj, series))
+            # pretend that we have some event data - it won't be saved anyway
+            events_df = pd.read_csv(events_in_path.format(1, 1))
         num_samples = data_df['id'].count()
 
         # handle subsampling
@@ -141,10 +149,11 @@ for subj in subjects:
         # tidy up the indexes
         data_id = pd.DataFrame(data_df['id'].map(lambda x: int(x.split('_')[2])).values)
         events_df['id'] = events_df['id'].map(lambda x: int(x.split('_')[2]))
-
         data_df.drop('id', axis=1, inplace=True)
+
         b,a = butter(3,2/250.0,btype='lowpass')
         data_df = pd.DataFrame(lfilter(b, a, data_df, axis=0))
+
         data_df.insert(0, 'id', data_id)
 
         # handle validation files
@@ -153,6 +162,13 @@ for subj in subjects:
             data_df = (data_df - mean) / std
             data_df.to_csv(data_out_path.format(subj, series) + '.val', index=False)
             events_df.to_csv(events_out_path.format(subj, series) + '.val', index=False)
+            continue
+
+        # handle test files
+        if (subj, series) in test_files:
+            print('copying as test')
+            data_df = (data_df - mean) / std
+            data_df.to_csv(data_out_path.format(subj, series) + '.test', index=False)
             continue
 
         # extract events with neighbourhoods

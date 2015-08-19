@@ -1,5 +1,6 @@
 python
 tmp
+sampled_files
 data
 cv
 python_utils/mean_std.pickle

@@ -68,4 +68,4 @@ if platform == 'linux':
     plt.show()
 else:
     plt.show(block=False)
-    sleep(100000)
+    input('Press ENTER to continue... ')

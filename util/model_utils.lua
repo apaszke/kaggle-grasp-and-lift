@@ -1,7 +1,7 @@
 
 -- adapted from https://github.com/wojciechz/learning_to_execute
 -- utilities for combining/flattening parameters in a model
--- the code in this script is more general than it needs to be, which is 
+-- the code in this script is more general than it needs to be, which is
 -- why it is kind of a large
 
 require 'torch'
@@ -110,7 +110,7 @@ end
 
 
 
-function model_utils.clone_many_times(net, T)
+function model_utils.clone_many_times(net, T, print_every)
     local clones = {}
 
     local params, gradParams
@@ -130,6 +130,11 @@ function model_utils.clone_many_times(net, T)
     mem:writeObject(net)
 
     for t = 1, T do
+        if print_every and t % print_every == 0 then
+          io.write('\r' .. t .. '...')
+          io.flush()
+        end
+
         -- We need to use a new reader for each clone.
         -- We don't want to use the pointers to already read objects.
         local reader = torch.MemoryFile(mem:storage(), "r"):binary()

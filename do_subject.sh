@@ -1,27 +1,35 @@
 #!/bin/bash
 
+function echoHeader() {
+  local message=$1
+  printf "\033[0;34m"
+  echo "================================================================================"
+  echo "= $message"
+  echo "================================================================================"
+  printf "\033[0m"
+}
+
 if [[ ! $1 ]]; then
   echo "No subject specified!"
   exit 1
 fi
 
-echo "Creating model for subject $1"
-
 # Run setup
-echo "Running setup..."
+echoHeader "Running setup..."
 sh setup.sh $1
 
-# clear old files
+clear old files
 rm -f data/torch/*.t7
 rm -f cv/*.t7
 
-th train_lstm.lua -seq_length 100 -batch_size 10 -print_every 10 -eval_val_every 100 -max_epochs 1
+echoHeader "Training LSTM..."
+th train_lstm.lua -seq_length 800 -batch_size 10 -print_every 10 -eval_val_every 100 -max_epochs 1
 
 # Find the best model
 best_checkpoint=$(ls -1 cv | sort | head -1)
 
-echo "Sampling validation set"
-th sample.lua cv/$best_checkpoint
-
-echo "Sampling test set"
+echoHeader "Sampling test set"
 th sample.lua cv/$best_checkpoint -submission
+
+echoHeader "Sampling validation set"
+th sample.lua cv/$best_checkpoint

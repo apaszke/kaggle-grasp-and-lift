@@ -68,4 +68,4 @@ if platform == 'linux':
     plt.show()
 else:
     plt.show(block=False)
-    sleep(15)
+    sleep(100000)

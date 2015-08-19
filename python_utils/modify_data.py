@@ -3,6 +3,7 @@ import argparse
 from subprocess import call
 from functools import reduce
 from random import seed, randint
+from scipy.signal import butter, lfilter
 import shutil
 import pickle
 
@@ -11,7 +12,7 @@ parser.add_argument('-n', default=-1, type=int, help='how many files to filter',
 parser.add_argument('-s', default=1, type=int, help='subsampling', dest='subsample')
 parser.add_argument('-v', default=4, type=int, help='how many files to leave for validation', dest='num_val_files')
 parser.add_argument('-o', default=10, type=int, help='', dest='offset')
-parser.add_argument('-c', default=False, action='store_true', help='clear filtered file directory', dest='should_rm')
+parser.add_argument('-subject', default=-1, type=int, help='', dest='subject')
 parser.add_argument('-f', default=False, action='store_true', help='clear filtered file directory', dest='filter')
 args = parser.parse_args()
 
@@ -24,6 +25,10 @@ num_series = 8
 total_samples = 0
 total_used_samples = 0
 event_length = 150 // args.subsample
+if args.subject == -1:
+  subjects = range(1, num_subjects + 1)
+else
+  subjects = [args.subject]
 
 seed(123)
 
@@ -32,10 +37,16 @@ if 150 % args.subsample != 0:
   quit()
 
 # remove old files
-if args.should_rm:
-    print('removing old files...')
-    call(['rm', '-rf', 'data/filtered'])
-    call(['mkdir', 'data/filtered'])
+print('removing old files...')
+call(['rm', '-rf', 'data/filtered'])
+call(['mkdir', 'data/filtered'])
+
+# save information about the data
+with open('data/filtered/info', 'w') as f:
+    f.write(str(args.offset))
+    f.write('\n')
+    f.write(str(args.subsample))
+    f.write('\n')
 
 
 with open('./data/mean_std.pickle', 'rb') as f:
@@ -113,7 +124,7 @@ def filterData(data_df, events_df):
 
 
 # we want inclusive ranges
-for subj in range(1, num_subjects + 1):
+for subj in subjects:
     for series in range(1, num_series + 1):
 
         # load files
@@ -128,8 +139,13 @@ for subj in range(1, num_subjects + 1):
             events_df = events_df.ix[([i for i in range(0, num_samples) if i % args.subsample == 0])]
 
         # tidy up the indexes
-        data_df['id'] = data_df['id'].map(lambda x: int(x.split('_')[2]))
+        data_id = pd.DataFrame(data_df['id'].map(lambda x: int(x.split('_')[2])).values)
         events_df['id'] = events_df['id'].map(lambda x: int(x.split('_')[2]))
+
+        data_df.drop('id', axis=1, inplace=True)
+        b,a = butter(3,2/250.0,btype='lowpass')
+        data_df = pd.DataFrame(lfilter(b, a, data_df, axis=0))
+        data_df.insert(0, 'id', data_id)
 
         # handle validation files
         if (subj, series) in val_files:
@@ -160,13 +176,6 @@ for subj in range(1, num_subjects + 1):
         # check if we have exceded the file limit
         if args.num_files > -1 and ((subj - 1) * num_series) + series - args.num_val_files >= args.num_files:
             quit()
-
-# save information about the data
-with open('data/filtered/info', 'w') as f:
-    f.write(str(args.offset))
-    f.write('\n')
-    f.write(str(args.subsample))
-    f.write('\n')
 
 total_percent_used = total_used_samples / total_samples * 100
 print('used {} samples ({:.2f}%)'.format(total_used_samples, total_percent_used))

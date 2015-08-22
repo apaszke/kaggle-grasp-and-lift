@@ -4,7 +4,7 @@ EEGMinibatchLoader.__index = EEGMinibatchLoader
 
 -- split_index is integer: 1 = train, 2 = val, 3 = test
 
-local PREPRO_TABLE_THRESHOLD = 0.7e6
+local PREPRO_TABLE_THRESHOLD = 0.5e5
 
 function EEGMinibatchLoader.create(opt)
     data_dir = opt.data_dir

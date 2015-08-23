@@ -1,6 +1,8 @@
 python
 tmp
 sampled_files
+validation_files
+submission_files
 data
 cv
 python_utils/mean_std.pickle

@@ -23,7 +23,7 @@ fi
 
 echo "Filtering and processing the data"
 echo $spacer
-if [[ $1 ]]; then
+if [ "$1" ]; then
   python3 python_utils/modify_data.py -num_val 2 -subsample 3 -subject $1
 else
   python3 python_utils/modify_data.py -num_val 2 -subsample 3

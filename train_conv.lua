@@ -152,6 +152,7 @@ local feval = function(x)
     local loss = 0
     local batch_size = x:size(1)
     local num_steps = x:size(2) - opt.window_len + 1
+    local has_printed = false
     for first_sample = 1, num_steps do
         local last_sample = first_sample + opt.window_len - 1
         local x_mini = x:sub(1, batch_size, first_sample, last_sample)
@@ -160,7 +161,7 @@ local feval = function(x)
         local partial_loss = criterion:forward(cnn:forward(x_mini), y_mini)
         loss = loss + partial_loss
         cnn:backward(x_mini, criterion:backward(cnn.output, y_mini))
-        if first_sample == 1 then
+        if not has_printed and first_sample % 10 == 0 and y_mini[1]:sum() > 0 then
             str = '\n'
             for i = 1, 6 do
                 str = str .. string.format('%.2f ', cnn.output[1][1][i])
@@ -170,6 +171,7 @@ local feval = function(x)
                 str = str .. string.format('%.2f ', y_mini[1][i])
             end
             print(str)
+            has_printed = true
         end
     end
 

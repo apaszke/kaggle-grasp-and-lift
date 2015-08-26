@@ -115,7 +115,8 @@ def filterData(data_df, events_df):
     events_slices = []
     for i in range(0, num_events * 6):
         start, end = event_boundaries[i]
-        data_slices.append(data_df.loc[start:end])
+        # Butterworth filter messes up the indexing
+        data_slices.append(data_df[data_df['id'].isin(range(start, end))])
         events_slices.append(events_df.loc[start:end])
     # concat and save the slices
     data_pd = pd.concat(data_slices)
@@ -144,14 +145,14 @@ for subj in subjects:
         # handle subsampling
         if args.subsample > 1:
             data_df = data_df.ix[([i for i in range(0, num_samples) if i % args.subsample == 0])]
-            events_df = events_df.ix[([i for i in range(0, num_samples) if i % args.subsample == 0])]
+            events_df = events_df.ix[([i for i in range(0, min(events_df['id'].count(), num_samples)) if i % args.subsample == 0])]
 
         # tidy up the indexes
         data_id = pd.DataFrame(data_df['id'].map(lambda x: int(x.split('_')[2])).values)
         events_df['id'] = events_df['id'].map(lambda x: int(x.split('_')[2]))
         data_df.drop('id', axis=1, inplace=True)
 
-        b,a = butter(3,2/250.0,btype='lowpass')
+        b,a = butter(3,3/250.0,btype='lowpass')
         data_df = pd.DataFrame(lfilter(b, a, data_df, axis=0))
 
         data_df.insert(0, 'id', data_id)

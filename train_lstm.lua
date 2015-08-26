@@ -1,17 +1,4 @@
 
---[[
-
-This file trains a character-level multi-layer RNN on text data
-
-Code is based on implementation in
-https://github.com/oxford-cs-ml-2015/practical6
-but modified to have multi-layer support, GPU support, as well as
-many other common model/optimization bells and whistles.
-The practical6 code is in turn based on
-https://github.com/wojciechz/learning_to_execute
-which is turn based on other stuff in Torch, etc... (long lineage)
-
-]]--
 
 require 'torch'
 require 'nn'
@@ -261,6 +248,7 @@ function feval(x)
     -- clip gradient element-wise
     grad_params:div(opt.seq_length)
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
+    init_state_global = clone_list(rnn_state[opt.seq_length])
     return loss, grad_params
 end
 

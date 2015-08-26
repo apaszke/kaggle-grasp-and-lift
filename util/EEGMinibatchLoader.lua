@@ -249,6 +249,9 @@ function EEGMinibatchLoader.preprocess(input_files, input_filename, label_filena
             end
         end
 
+        data_content = nil
+        collectgarbage()
+
         ----------------- events file ------------------
         local labels_csv = string.gsub(data_file, "data.csv", "events.csv") -- change the file name
         local label_fh = io.open(labels_csv)

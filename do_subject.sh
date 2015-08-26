@@ -23,13 +23,10 @@ rm -f data/torch/*.t7
 rm -f cv/*.t7
 
 echoHeader "Training LSTM..."
-th train_lstm.lua -seq_length 800 -batch_size 5 -print_every 10 -eval_val_every 100 -max_epochs 20 -rnn_size 200 -dropout 0.3
+th train_lstm.lua -seq_length 800 -batch_size 5 -print_every 10 -eval_val_every 100 -max_epochs 20 -rnn_size 100 -dropout 0.5
 
 # Find the best model
 best_checkpoint=$(ls -1 cv | sort | head -1)
-
-echoHeader "Sampling test set"
-th sample.lua cv/$best_checkpoint -submission
 
 echoHeader "Sampling validation set"
 th sample.lua cv/$best_checkpoint

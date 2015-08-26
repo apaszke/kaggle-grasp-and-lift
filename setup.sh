@@ -6,6 +6,10 @@ mkdir -p data/test
 mkdir -p data/preprocessed
 mkdir -p data/torch
 mkdir -p cv
+mkdir -p tmp
+mkdir -p tmp/sampled_files
+mkdir -p tmp/validation_files
+mkdir -p tmp/submission_files
 
 while [ ! "$(ls -A data/train)" ]; do
     echo "Please copy the data into:"

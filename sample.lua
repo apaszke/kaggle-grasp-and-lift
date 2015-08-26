@@ -23,8 +23,8 @@ cmd:option('-calc_roc',false,'')
 cmd:text()
 
 -- clear old sampled files
-os.execute('rm -rf sampled_files')
-lfs.mkdir('sampled_files')
+os.execute('rm -rf tmp/sampled_files')
+lfs.mkdir('tmp/sampled_files')
 
 -- parse input params
 opt = cmd:parse(arg)
@@ -104,16 +104,22 @@ for file in lfs.dir(opt.data_dir) do
 
         -- create data tensor
         local data_tensor = torch.Tensor(data_table)
+        data_content = nil
+        collectgarbage()
         if opt.gpuid >= 0 then data_tensor = data_tensor:cuda() end
         local num_samples = data_tensor:size(1)
 
-        local out_file = io.open('sampled_files/' .. file, 'w')
+        local out_file = io.open('tmp/sampled_files/' .. file, 'w')
         local lines_written = sampler:prepare_file(out_file)
 
         local line
         for t = lines_written + 1, num_samples do
             if t % 100 == 0 then
               xlua.progress(t, num_samples)
+            end
+            if t % 1000 == 0 then
+                out_file:flush()
+                collectgarbage()
             end
 
             -- generate prediction and next state
@@ -145,7 +151,7 @@ for file in lfs.dir(opt.data_dir) do
 
         out_file:close()
         xlua.progress(num_samples, num_samples)
-
+        collectgarbage()
     end
 end
 
